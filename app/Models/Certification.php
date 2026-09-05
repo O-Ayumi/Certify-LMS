@@ -129,6 +129,12 @@ class Certification extends Model
         return $this->hasMany(MockExam::class);
     }
 
+    /** @return HasMany<QaThread, $this> */
+    public function qaThreads(): HasMany
+    {
+        return $this->hasMany(QaThread::class);
+    }
+
     public function scopePublished(Builder $query): Builder
     {
         return $query->where('status', CertificationStatus::Published->value);

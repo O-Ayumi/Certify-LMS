@@ -52,6 +52,17 @@ class UpdateTest extends TestCase
         }
     }
 
+    public function test_other_student_cannot_open_the_edit_form(): void
+    {
+        $owner = User::factory()->student()->create();
+        $other = User::factory()->student()->create();
+        $thread = QaThread::factory()->for($owner)->create();
+
+        $this->actingAs($other)
+            ->get(route('qa-board.edit', $thread))
+            ->assertForbidden();
+    }
+
     public function test_owner_cannot_update_after_certification_is_unpublished(): void
     {
         $owner = User::factory()->student()->create();

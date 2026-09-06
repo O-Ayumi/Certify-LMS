@@ -25,6 +25,8 @@ use App\Http\Controllers\MockExamQuestionController;
 use App\Http\Controllers\MockExamSessionController;
 use App\Http\Controllers\MockExamSessionMonitorController;
 use App\Http\Controllers\PartController;
+use App\Http\Controllers\QaReplyController;
+use App\Http\Controllers\QaThreadController;
 use App\Http\Controllers\QuestionCategoryController;
 use App\Http\Controllers\QuizHistoryController;
 use App\Http\Controllers\QuizStatsController;
@@ -73,6 +75,37 @@ Route::middleware('auth')->group(function () {
     Route::get('enrollments/{enrollment}', [EnrollmentController::class, 'show'])
         ->withTrashed()
         ->name('enrollments.show');
+});
+
+// 質問掲示板（受講生・コーチ）
+Route::middleware(['auth', 'role:student', 'active-learning'])
+    ->get('qa-board/create', [QaThreadController::class, 'create'])
+    ->name('qa-board.create');
+
+Route::middleware(['auth', 'role:student,coach', 'active-learning'])->prefix('qa-board')->name('qa-board.')->scopeBindings()->group(function () {
+    Route::get('/', [QaThreadController::class, 'index'])->name('index');
+    Route::get('{thread}', [QaThreadController::class, 'show'])->name('show');
+    Route::post('{thread}/replies', [QaReplyController::class, 'store'])->name('replies.store');
+    Route::get('{thread}/replies/{reply}/edit', [QaReplyController::class, 'edit'])->name('replies.edit');
+    Route::patch('{thread}/replies/{reply}', [QaReplyController::class, 'update'])->name('replies.update');
+    Route::delete('{thread}/replies/{reply}', [QaReplyController::class, 'destroy'])->name('replies.destroy');
+});
+
+Route::middleware(['auth', 'role:student', 'active-learning'])->prefix('qa-board')->name('qa-board.')->group(function () {
+    Route::post('/', [QaThreadController::class, 'store'])->name('store');
+    Route::get('{thread}/edit', [QaThreadController::class, 'edit'])->name('edit');
+    Route::patch('{thread}', [QaThreadController::class, 'update'])->name('update');
+    Route::delete('{thread}', [QaThreadController::class, 'destroy'])->name('destroy');
+    Route::post('{thread}/resolve', [QaThreadController::class, 'resolve'])->name('resolve');
+    Route::post('{thread}/unresolve', [QaThreadController::class, 'unresolve'])->name('unresolve');
+});
+
+// 質問掲示板モデレーション（管理者）
+Route::middleware(['auth', 'role:admin'])->prefix('admin/qa-board')->name('admin.qa-board.')->scopeBindings()->group(function () {
+    Route::get('/', [QaThreadController::class, 'index'])->name('index');
+    Route::get('{thread}', [QaThreadController::class, 'show'])->name('show');
+    Route::delete('{thread}', [QaThreadController::class, 'destroy'])->name('destroy');
+    Route::delete('{thread}/replies/{reply}', [QaReplyController::class, 'destroy'])->name('replies.destroy');
 });
 
 // ============================================================

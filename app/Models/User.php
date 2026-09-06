@@ -218,6 +218,18 @@ class User extends Authenticatable
         return $this->hasMany(SectionQuestionAttempt::class);
     }
 
+    /** @return HasMany<QaThread, $this> */
+    public function qaThreads(): HasMany
+    {
+        return $this->hasMany(QaThread::class);
+    }
+
+    /** @return HasMany<QaReply, $this> */
+    public function qaReplies(): HasMany
+    {
+        return $this->hasMany(QaReply::class);
+    }
+
     /**
      * 受講生本人の模試受験セッション。enrollment_id 経由で取得可能だが非正規化された user_id を直接参照する。
      *

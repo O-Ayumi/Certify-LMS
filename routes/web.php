@@ -17,6 +17,7 @@ use App\Http\Controllers\EnrollmentManagementController;
 use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\LearningHourTargetController;
 use App\Http\Controllers\MeetingController;
+use App\Http\Controllers\MeetingPackController;
 use App\Http\Controllers\MeetingQuotaHistoryController;
 use App\Http\Controllers\MockExamAnswerController;
 use App\Http\Controllers\MockExamCatalogController;
@@ -182,6 +183,20 @@ Route::middleware(['auth', 'role:student', 'active-learning'])
 // admin 専用ルート
 // ============================================================
 Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
+    // 面談パック管理 — adminのみ。更新はチケットのインターフェースに合わせPATCH限定。
+    Route::resource('meeting-packs', MeetingPackController::class)
+        ->except('update')
+        ->parameters(['meeting-packs' => 'plan'])
+        ->names('admin.meeting-packs');
+    Route::patch('meeting-packs/{plan}', [MeetingPackController::class, 'update'])
+        ->name('admin.meeting-packs.update');
+    Route::post('meeting-packs/{plan}/publish', [MeetingPackController::class, 'publish'])
+        ->name('admin.meeting-packs.publish');
+    Route::post('meeting-packs/{plan}/archive', [MeetingPackController::class, 'archive'])
+        ->name('admin.meeting-packs.archive');
+    Route::post('meeting-packs/{plan}/unarchive', [MeetingPackController::class, 'unarchive'])
+        ->name('admin.meeting-packs.unarchive');
+
     // ユーザー管理
     Route::get('users', [UserController::class, 'index'])->name('admin.users.index');
     Route::get('users/{user}', [UserController::class, 'show'])

@@ -25,6 +25,7 @@ use App\Http\Controllers\MockExamController;
 use App\Http\Controllers\MockExamQuestionController;
 use App\Http\Controllers\MockExamSessionController;
 use App\Http\Controllers\MockExamSessionMonitorController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PartController;
 use App\Http\Controllers\PlanController;
 use App\Http\Controllers\QaReplyController;
@@ -67,6 +68,13 @@ Route::post('/onboarding/{invitation}', [OnboardingController::class, 'store'])
 // 認証後の全ロール共通ルート
 // ============================================================
 Route::middleware('auth')->group(function () {
+    // 通知は受講状態によらず、ログイン可能な本人が閲覧・既読化できる。
+    Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::post('notifications/read-all', [NotificationController::class, 'markAllAsRead'])->name('notifications.markAllAsRead');
+    Route::post('notifications/{notification}/read', [NotificationController::class, 'markAsRead'])
+        ->whereUuid('notification')
+        ->name('notifications.markAsRead');
+
     // ダッシュボード
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard.index');
 

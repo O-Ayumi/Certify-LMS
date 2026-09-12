@@ -143,6 +143,10 @@ final class EnrollmentSeeder extends Seeder
                 ],
             );
 
+            if ($index === 0) {
+                $this->seedGoals($enrollment);
+            }
+
             EnrollmentStatusLog::firstOrCreate(
                 ['enrollment_id' => $enrollment->id, 'to_status' => EnrollmentStatus::Learning->value],
                 [
@@ -200,11 +204,29 @@ final class EnrollmentSeeder extends Seeder
                 'passed_at' => $passedAt,
             ]);
 
+            $this->seedGoals($enrollment);
+
             $this->seedStatusLogs($enrollment, $pattern['state'], $student);
 
             if ($pattern['state'] === 'passed') {
                 $this->issueCertificate($enrollment, $passedAt);
             }
+        }
+    }
+
+    private function seedGoals(Enrollment $enrollment): void
+    {
+        $enrollment->goals()->firstOrCreate(['title' => '過去問 5 年分を解き終える'], [
+            'description' => '毎週 1 年分ずつ取り組む',
+            'target_date' => now()->addWeeks(5)->toDateString(),
+        ]);
+        $goal = $enrollment->goals()->firstOrCreate(['title' => '学習計画を立てる'], [
+            'description' => '試験日から逆算して学習を計画する',
+            'target_date' => now()->subDay()->toDateString(),
+        ]);
+        if ($goal->wasRecentlyCreated) {
+            $goal->achieved_at = now()->subDay();
+            $goal->save();
         }
     }
 

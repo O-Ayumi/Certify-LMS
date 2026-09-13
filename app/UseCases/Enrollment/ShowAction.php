@@ -19,6 +19,7 @@ final class ShowAction
             'certification.category',
             'certification.coaches',
             'certificate',
+            'goals',
             'latestStatusLog.changedBy',
         ]);
     }

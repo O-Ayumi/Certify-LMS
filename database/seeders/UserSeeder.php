@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Database\Seeders;
 
+use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * 開発用シードユーザー。
@@ -27,7 +29,7 @@ use Illuminate\Support\Facades\Hash;
  *    - student × withdrawn × 2 (退会、soft delete)
  *
  * Plan / Enrollment 等への紐づけは依存 Seeder(PlanSeeder / EnrollmentSeeder 等) で行う。
- * 本 Seeder は **User + UserStatus** の網羅性のみ担保する(単一責任)。
+ * 本 Seeder は User のロール・状態とプロフィール確認用アバターの有無を担保する。
  */
 class UserSeeder extends Seeder
 {
@@ -35,6 +37,35 @@ class UserSeeder extends Seeder
     {
         $this->createFixedAccounts();
         $this->createDemoStudents();
+        $this->setDemoAvatars();
+    }
+
+    /**
+     * S-B-06: コーチ・受講中・修了済でアバター設定済 / 未設定を混在させる。
+     * 本人のアップロードと同じ保存先を使い、差し替え・削除も確認可能にする。
+     */
+    private function setDemoAvatars(): void
+    {
+        $image = file_get_contents(database_path('seeders/fixtures/avatar.png'));
+        if ($image === false) {
+            throw new \RuntimeException('確認用アバター画像を読み込めませんでした。');
+        }
+
+        $users = [
+            User::where('email', 'coach@certify-lms.test')->firstOrFail(),
+            User::where('email', 'student@certify-lms.test')->firstOrFail(),
+            User::where('role', UserRole::Student)
+                ->where('status', UserStatus::Graduated)->orderBy('id')->firstOrFail(),
+        ];
+
+        foreach ($users as $user) {
+            $path = 'avatars/'.$user->id.'/demo.png';
+            if (! Storage::disk('public')->put($path, $image)) {
+                throw new \RuntimeException('確認用アバター画像を保存できませんでした。');
+            }
+
+            $user->update(['avatar_url' => Storage::disk('public')->url($path)]);
+        }
     }
 
     /**

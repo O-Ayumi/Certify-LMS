@@ -43,6 +43,9 @@ use App\Http\Controllers\SectionQuestionController;
 use App\Http\Controllers\SectionQuizController;
 use App\Http\Controllers\SectionQuizResultController;
 use App\Http\Controllers\Settings\AvailabilityController as SettingsAvailabilityController;
+use App\Http\Controllers\Settings\AvatarController;
+use App\Http\Controllers\Settings\PasswordController;
+use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\SettingsDefaultEnrollmentController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WeakDrillController;
@@ -69,6 +72,13 @@ Route::post('/onboarding/{invitation}', [OnboardingController::class, 'store'])
 // 認証後の全ロール共通ルート
 // ============================================================
 Route::middleware('auth')->group(function () {
+    // 設定・プロフィールの表示・編集は全ロール可能
+    Route::get('settings/profile', [ProfileController::class, 'show'])->name('settings.profile.edit');
+    Route::patch('settings/profile', [ProfileController::class, 'update'])->name('settings.profile.update');
+    Route::post('settings/avatar', [AvatarController::class, 'store'])->name('settings.avatar.store');
+    Route::delete('settings/avatar', [AvatarController::class, 'destroy'])->name('settings.avatar.destroy');
+    Route::put('settings/password', [PasswordController::class, 'update'])->name('settings.password.update');
+
     // 通知は受講状態によらず、ログイン可能な本人が閲覧・既読化できる。
     Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::post('notifications/read-all', [NotificationController::class, 'markAllAsRead'])->name('notifications.markAllAsRead');

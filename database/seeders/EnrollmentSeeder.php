@@ -168,7 +168,13 @@ final class EnrollmentSeeder extends Seeder
     private function seedNotes(Enrollment $enrollment): void
     {
         $authors = User::query()
-            ->whereIn('role', [UserRole::Coach->value, UserRole::Admin->value])
+            ->where(function ($query) use ($enrollment) {
+                $query->where('role', UserRole::Admin->value)
+                    ->orWhere(function ($query) use ($enrollment) {
+                        $query->where('role', UserRole::Coach->value)
+                            ->whereHas('assignedCertifications', fn ($certifications) => $certifications->whereKey($enrollment->certification_id));
+                    });
+            })
             ->orderBy('created_at')
             ->limit(3)
             ->get();

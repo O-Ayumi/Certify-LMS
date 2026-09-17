@@ -12,6 +12,7 @@ use App\Enums\UserStatus;
 use App\Models\Certificate;
 use App\Models\Certification;
 use App\Models\Enrollment;
+use App\Models\EnrollmentNote;
 use App\Models\EnrollmentStatusLog;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
@@ -156,6 +157,33 @@ final class EnrollmentSeeder extends Seeder
                     'changed_reason' => '新規登録',
                 ],
             );
+
+            $this->seedNotes($enrollment);
+        }
+    }
+
+    /**
+     * 管理者・コーチの投稿を混在させ、一覧表示と操作ボタンの境界を確認できるようにする。
+     */
+    private function seedNotes(Enrollment $enrollment): void
+    {
+        $authors = User::query()
+            ->where(function ($query) use ($enrollment) {
+                $query->where('role', UserRole::Admin->value)
+                    ->orWhere(function ($query) use ($enrollment) {
+                        $query->where('role', UserRole::Coach->value)
+                            ->whereHas('assignedCertifications', fn ($certifications) => $certifications->whereKey($enrollment->certification_id));
+                    });
+            })
+            ->orderBy('created_at')
+            ->limit(3)
+            ->get();
+
+        foreach ($authors as $author) {
+            EnrollmentNote::firstOrCreate(
+                ['enrollment_id' => $enrollment->id, 'author_user_id' => $author->id],
+                ['body' => $author->role === UserRole::Admin ? '運営確認用のメモです。' : '学習状況を継続して確認する。'],
+            );
         }
     }
 
@@ -207,6 +235,7 @@ final class EnrollmentSeeder extends Seeder
             $this->seedGoals($enrollment);
 
             $this->seedStatusLogs($enrollment, $pattern['state'], $student);
+            $this->seedNotes($enrollment);
 
             if ($pattern['state'] === 'passed') {
                 $this->issueCertificate($enrollment, $passedAt);

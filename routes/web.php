@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\Auth\OnboardingController;
 use App\Http\Controllers\BrowseController;
 use App\Http\Controllers\CertificationCatalogController;
@@ -84,8 +85,9 @@ Route::middleware('auth')->group(function () {
     Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::post('notifications/read-all', [NotificationController::class, 'markAllAsRead'])->name('notifications.markAllAsRead');
     Route::post('notifications/{notification}/read', [NotificationController::class, 'markAsRead'])
-        ->whereUuid('notification')
         ->name('notifications.markAsRead');
+    Route::get('notifications/{notification}', [NotificationController::class, 'show'])
+        ->name('notifications.show');
 
     // ダッシュボード
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard.index');
@@ -221,6 +223,15 @@ Route::middleware(['auth', 'role:student', 'active-learning'])
 // admin 専用ルート
 // ============================================================
 Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
+    Route::get('announcements', [AnnouncementController::class, 'index'])
+        ->name('admin.announcements.index');
+    Route::get('announcements/create', [AnnouncementController::class, 'create'])
+        ->name('admin.announcements.create');
+    Route::post('announcements', [AnnouncementController::class, 'store'])
+        ->name('admin.announcements.store');
+    Route::get('announcements/{announcement}', [AnnouncementController::class, 'show'])
+        ->name('admin.announcements.show');
+
     // 面談パック管理 — adminのみ。更新はチケットのインターフェースに合わせPATCH限定。
     Route::resource('meeting-packs', MeetingPackController::class)
         ->except('update')

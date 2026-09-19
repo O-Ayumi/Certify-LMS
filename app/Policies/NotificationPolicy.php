@@ -21,4 +21,9 @@ class NotificationPolicy
         return $notification->notifiable_type === $user->getMorphClass()
             && $notification->notifiable_id === $user->id;
     }
+
+    public function view(User $user, DatabaseNotification $notification): bool
+    {
+        return $this->update($user, $notification);
+    }
 }

@@ -17,6 +17,6 @@ final class MarkAsReadAction
         // 既読日時は初回のみ更新する。チャット本体の既読には触れない。
         DatabaseNotification::query()->whereKey($notification->id)->whereNull('read_at')->update(['read_at' => now()]);
 
-        return $notification->data['url'];
+        return $notification->data['url'] ?? route('notifications.index');
     }
 }

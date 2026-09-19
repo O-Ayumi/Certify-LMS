@@ -25,8 +25,16 @@
     'group',
     'bg-primary-50/30' => $isUnread,
 ])>
-    <a href="{{ route('notifications.show', $notification) }}"
-        class="block w-full flex items-start gap-3 px-4 sm:px-6 py-4 hover:bg-ink-50 transition-colors text-left">
+    <form novalidate
+        method="POST"
+        action="{{ route('notifications.markAsRead', $notification) }}"
+        class="block"
+    >
+        @csrf
+        <button
+            type="submit"
+            class="w-full flex items-start gap-3 px-4 sm:px-6 py-4 hover:bg-ink-50 transition-colors text-left"
+        >
             <span @class([
                 'mt-1 inline-flex w-9 h-9 items-center justify-center rounded-lg shrink-0',
                 'bg-primary-100 text-primary-700' => $isUnread,
@@ -50,5 +58,6 @@
                 @endif
                 <p class="mt-1.5 text-[11px] text-ink-500">{{ $createdRelative }}</p>
             </div>
-    </a>
+        </button>
+    </form>
 </li>

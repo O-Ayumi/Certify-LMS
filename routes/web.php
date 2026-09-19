@@ -85,10 +85,8 @@ Route::middleware('auth')->group(function () {
     Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::post('notifications/read-all', [NotificationController::class, 'markAllAsRead'])->name('notifications.markAllAsRead');
     Route::post('notifications/{notification}/read', [NotificationController::class, 'markAsRead'])
-        ->whereUuid('notification')
         ->name('notifications.markAsRead');
     Route::get('notifications/{notification}', [NotificationController::class, 'show'])
-        ->whereUuid('notification')
         ->name('notifications.show');
 
     // ダッシュボード

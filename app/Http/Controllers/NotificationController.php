@@ -35,6 +35,16 @@ class NotificationController extends Controller
         return redirect()->to($action($notification));
     }
 
+    public function show(DatabaseNotification $notification, MarkAsReadAction $action): View
+    {
+        $this->authorize('view', $notification);
+        $action($notification);
+
+        return view('notifications.show', [
+            'notification' => $notification->fresh(),
+        ]);
+    }
+
     public function markAllAsRead(Request $request, MarkAllAsReadAction $action): RedirectResponse
     {
         $this->authorize('viewAny', DatabaseNotification::class);

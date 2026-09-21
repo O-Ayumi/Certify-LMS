@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Notifications\Meeting\MeetingReminderNotification;
 use App\Services\ActivityNotificationService;
 use Illuminate\Console\Command;
+use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Support\Carbon;
 
 class SendMeetingRemindersCommand extends Command
@@ -79,12 +80,12 @@ class SendMeetingRemindersCommand extends Command
 
     private function alreadySent(string $recipientId, string $meetingId, MeetingReminderWindow $window): bool
     {
-        return (bool) User::query()
-            ->find($recipientId)?->notifications()
+        return DatabaseNotification::query()
+            ->where('notifiable_type', User::class)
+            ->where('notifiable_id', $recipientId)
             ->where('type', MeetingReminderNotification::class)
-            ->get()
-            ->contains(fn ($notification): bool => ($notification->data['meeting_id'] ?? null) === $meetingId
-                && ($notification->data['window'] ?? null) === $window->value
-            );
+            ->whereJsonContains('data->meeting_id', $meetingId)
+            ->whereJsonContains('data->window', $window->value)
+            ->exists();
     }
 }

@@ -47,4 +47,20 @@ class ActivityNotificationTest extends TestCase
             $this->assertStringContainsString('内容を確認する', (string) $mail->render());
         }
     }
+
+    public function test_meeting_reminder_mail_subject_and_body_change_by_window(): void
+    {
+        $user = User::factory()->create();
+        $meeting = Meeting::factory()->create();
+
+        $eve = new MeetingReminderNotification($meeting, MeetingReminderWindow::Eve);
+        $oneHourBefore = new MeetingReminderNotification($meeting, MeetingReminderWindow::OneHourBefore);
+
+        $this->assertSame('eve', $eve->toArray($user)['window']);
+        $this->assertSame('明日の面談のお知らせ', $eve->toArray($user)['title']);
+        $this->assertSame('【Certify LMS】明日の面談のお知らせ', $eve->toMail($user)->subject);
+        $this->assertSame('one_hour_before', $oneHourBefore->toArray($user)['window']);
+        $this->assertSame('1時間後の面談のお知らせ', $oneHourBefore->toArray($user)['title']);
+        $this->assertSame('【Certify LMS】1時間後の面談のお知らせ', $oneHourBefore->toMail($user)->subject);
+    }
 }

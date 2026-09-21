@@ -9,9 +9,11 @@ use App\Enums\UserStatus;
 use App\Models\Meeting;
 use App\Models\User;
 use App\Notifications\Meeting\MeetingReminderNotification;
+use App\Notifications\Meeting\MeetingReservedNotification;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Notifications\Channels\MailChannel;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class SendMeetingRemindersCommandTest extends TestCase
@@ -63,6 +65,35 @@ class SendMeetingRemindersCommandTest extends TestCase
         $this->assertSame(1, $coach->notifications()->count());
         $this->assertSame($inWindow->id, $student->notifications()->sole()->data['meeting_id']);
         $this->assertSame('one_hour_before', $student->notifications()->sole()->data['window']);
+    }
+
+    public function test_multiple_meetings_and_existing_other_notifications_are_handled_independently(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-09-20 10:00:00'));
+        $student = User::factory()->student()->create();
+        $coach = User::factory()->coach()->create();
+        $first = Meeting::factory()->forStudent($student)->forCoach($coach)->create([
+            'scheduled_at' => now()->addMinutes(60),
+        ]);
+        $second = Meeting::factory()->forStudent($student)->forCoach($coach)->create([
+            'scheduled_at' => now()->addMinutes(65),
+        ]);
+        $existing = new MeetingReservedNotification($first);
+        $student->notifications()->create([
+            'id' => (string) Str::uuid(),
+            'type' => $existing::class,
+            'data' => $existing->toArray($student),
+        ]);
+        $this->mock(MailChannel::class)->shouldReceive('send')->times(4);
+
+        $this->artisan('notifications:send-meeting-reminders', ['--window' => 'one_hour_before'])
+            ->assertExitCode(0);
+
+        $this->assertSame(3, $student->notifications()->count());
+        $this->assertSame(2, $coach->notifications()->count());
+        $this->assertSame(2, $student->notifications()->where('type', MeetingReminderNotification::class)->count());
+        $this->assertSame(2, $coach->notifications()->where('type', MeetingReminderNotification::class)->count());
+        $this->assertNotSame($first->id, $second->id);
     }
 
     public function test_only_reserved_meetings_and_in_progress_recipients_are_notified(): void

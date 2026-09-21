@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Notifications;
 
+use App\Enums\MeetingReminderWindow;
 use App\Models\ChatMessage;
 use App\Models\Meeting;
 use App\Models\QaReply;
 use App\Models\User;
 use App\Notifications\Chat\ChatMessageReceivedNotification;
 use App\Notifications\Meeting\MeetingCanceledNotification;
+use App\Notifications\Meeting\MeetingReminderNotification;
 use App\Notifications\Meeting\MeetingReservedNotification;
 use App\Notifications\QaReply\QaReplyReceivedNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -30,6 +32,7 @@ class ActivityNotificationTest extends TestCase
             [new QaReplyReceivedNotification($reply), 'qa_reply_received', route('qa-board.show', $reply->qa_thread_id)],
             [new MeetingReservedNotification($meeting), 'meeting_reserved', route('meetings.show', $meeting)],
             [new MeetingCanceledNotification($meeting), 'meeting_canceled', route('meetings.show', $meeting)],
+            [new MeetingReminderNotification($meeting, MeetingReminderWindow::Eve), 'meeting_reminder', route('meetings.show', $meeting)],
         ];
         foreach ($cases as [$notification, $type, $url]) {
             $data = $notification->toArray($user);

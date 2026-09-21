@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Notifications;
 
+use App\Enums\MeetingReminderWindow;
 use App\Models\ChatMessage;
 use App\Models\Meeting;
 use App\Models\QaReply;
 use App\Models\User;
 use App\Notifications\Chat\ChatMessageReceivedNotification;
 use App\Notifications\Meeting\MeetingCanceledNotification;
+use App\Notifications\Meeting\MeetingReminderNotification;
 use App\Notifications\Meeting\MeetingReservedNotification;
 use App\Notifications\QaReply\QaReplyReceivedNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -30,6 +32,7 @@ class ActivityNotificationTest extends TestCase
             [new QaReplyReceivedNotification($reply), 'qa_reply_received', route('qa-board.show', $reply->qa_thread_id)],
             [new MeetingReservedNotification($meeting), 'meeting_reserved', route('meetings.show', $meeting)],
             [new MeetingCanceledNotification($meeting), 'meeting_canceled', route('meetings.show', $meeting)],
+            [new MeetingReminderNotification($meeting, MeetingReminderWindow::Eve), 'meeting_reminder', route('meetings.show', $meeting)],
         ];
         foreach ($cases as [$notification, $type, $url]) {
             $data = $notification->toArray($user);
@@ -43,5 +46,21 @@ class ActivityNotificationTest extends TestCase
             $this->assertStringNotContainsString('転載しない', $data['message']);
             $this->assertStringContainsString('内容を確認する', (string) $mail->render());
         }
+    }
+
+    public function test_meeting_reminder_mail_subject_and_body_change_by_window(): void
+    {
+        $user = User::factory()->create();
+        $meeting = Meeting::factory()->create();
+
+        $eve = new MeetingReminderNotification($meeting, MeetingReminderWindow::Eve);
+        $oneHourBefore = new MeetingReminderNotification($meeting, MeetingReminderWindow::OneHourBefore);
+
+        $this->assertSame('eve', $eve->toArray($user)['window']);
+        $this->assertSame('明日の面談のお知らせ', $eve->toArray($user)['title']);
+        $this->assertSame('【Certify LMS】明日の面談のお知らせ', $eve->toMail($user)->subject);
+        $this->assertSame('one_hour_before', $oneHourBefore->toArray($user)['window']);
+        $this->assertSame('1時間後の面談のお知らせ', $oneHourBefore->toArray($user)['title']);
+        $this->assertSame('【Certify LMS】1時間後の面談のお知らせ', $oneHourBefore->toMail($user)->subject);
     }
 }

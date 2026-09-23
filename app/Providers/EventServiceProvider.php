@@ -14,6 +14,7 @@ use App\Listeners\SendChatMessageNotification;
 use App\Listeners\SendMeetingNotification;
 use App\Listeners\SendQaReplyNotification;
 use App\Listeners\SyncChatMembersOnCoachAssignmentChanged;
+use App\Listeners\SyncMeetingGoogleCalendar;
 use App\Listeners\UpdateLastLoginAt;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\Registered;
@@ -37,9 +38,11 @@ class EventServiceProvider extends ServiceProvider
         ],
         MeetingReserved::class => [
             SendMeetingNotification::class,
+            SyncMeetingGoogleCalendar::class,
         ],
         MeetingCanceled::class => [
             SendMeetingNotification::class,
+            SyncMeetingGoogleCalendar::class,
         ],
         Registered::class => [
             SendEmailVerificationNotification::class,

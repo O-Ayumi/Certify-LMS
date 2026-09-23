@@ -10,6 +10,7 @@ use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use App\Models\CoachAvailability;
 use App\Models\Enrollment;
+use App\Models\GoogleCalendarCredential;
 use App\Models\Meeting;
 use App\Models\MeetingMemo;
 use App\Models\MeetingQuotaTransaction;
@@ -36,9 +37,18 @@ final class MentoringSeeder extends Seeder
     public function run(): void
     {
         $this->seedCoachAvailabilities();
+        $this->seedGoogleCalendarCredentials();
         $this->seedFixedStudentMeetings();
         $this->seedNoQuotaStudentMeetings();
         $this->seedDemoMeetings();
+    }
+
+    private function seedGoogleCalendarCredentials(): void
+    {
+        $coach = User::query()->where('email', 'coach2@certify-lms.test')->first();
+        if ($coach !== null) {
+            GoogleCalendarCredential::factory()->for($coach)->create();
+        }
     }
 
     /**

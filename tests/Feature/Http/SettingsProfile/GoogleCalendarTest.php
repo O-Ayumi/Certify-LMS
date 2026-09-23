@@ -61,4 +61,45 @@ final class GoogleCalendarTest extends TestCase
 
         $this->assertDatabaseMissing('google_calendar_credentials', ['user_id' => $coach->id]);
     }
+
+    public function test_callback_failure_does_not_change_existing_credential(): void
+    {
+        $coach = User::factory()->coach()->create();
+        $credential = GoogleCalendarCredential::factory()->for($coach)->create([
+            'google_user_id' => 'old-google-user',
+            'refresh_token' => 'old-refresh-token',
+        ]);
+        $google = Mockery::mock(GoogleCalendarService::class);
+        $google->shouldReceive('connect')->once()->andThrow(new \RuntimeException('oauth failed'));
+        $this->app->instance(GoogleCalendarService::class, $google);
+
+        $this->actingAs($coach)
+            ->withSession(['google_calendar_oauth_state' => 'state'])
+            ->get(route('settings.google-calendar.callback', ['state' => 'state', 'code' => 'code']))
+            ->assertRedirect(route('settings.availability.index'))
+            ->assertSessionHas('error');
+
+        $this->assertDatabaseHas('google_calendar_credentials', [
+            'id' => $credential->id,
+            'google_user_id' => 'old-google-user',
+            'refresh_token' => 'old-refresh-token',
+        ]);
+    }
+
+    public function test_callback_ignores_external_redirect_path(): void
+    {
+        $coach = User::factory()->coach()->create();
+        $google = Mockery::mock(GoogleCalendarService::class);
+        $google->shouldReceive('connect')->once()->andReturn(['google-user', [
+            'access_token' => 'access-token', 'refresh_token' => 'refresh-token', 'expires_in' => 3600,
+        ]]);
+        $this->app->instance(GoogleCalendarService::class, $google);
+
+        $this->actingAs($coach)
+            ->withSession(['google_calendar_oauth_state' => 'state'])
+            ->get(route('settings.google-calendar.callback', [
+                'state' => 'state', 'code' => 'code', 'redirect_path' => 'https://example.com',
+            ]))
+            ->assertRedirect(route('settings.availability.index'));
+    }
 }

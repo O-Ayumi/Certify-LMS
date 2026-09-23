@@ -9,10 +9,12 @@ use App\Models\Certification;
 use App\Models\CoachAvailability;
 use App\Models\Meeting;
 use App\Models\User;
+use App\Services\GoogleCalendarService;
 use App\Services\MeetingAvailabilityService;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use Mockery;
 use Tests\TestCase;
 
 class MeetingAvailabilityServiceTest extends TestCase
@@ -27,6 +29,59 @@ class MeetingAvailabilityServiceTest extends TestCase
             'assigned_at' => now(),
             'unassigned_at' => null,
         ]);
+    }
+
+    public function test_excludes_slots_overlapping_google_calendar_busy_periods(): void
+    {
+        $certification = Certification::factory()->published()->create();
+        $coach = User::factory()->coach()->create();
+        $this->attachCoach($certification, $coach);
+        CoachAvailability::factory()->forCoach($coach)->onDay(1)->timeRange('09:00:00', '12:00:00')->create();
+
+        $google = Mockery::mock(GoogleCalendarService::class);
+        $google->shouldReceive('busyPeriods')->once()->andReturn([
+            ['start' => Carbon::parse('2026-06-01 09:30:00'), 'end' => Carbon::parse('2026-06-01 10:30:00')],
+        ]);
+        $this->app->instance(GoogleCalendarService::class, $google);
+
+        $slots = app(MeetingAvailabilityService::class)->slotsForCertification($certification, Carbon::parse('2026-06-01'));
+
+        $this->assertSame(['11:00'], $slots->map(fn (array $slot) => $slot['slot_start']->format('H:i'))->all());
+    }
+
+    public function test_google_calendar_failure_falls_back_to_lms_availability(): void
+    {
+        $certification = Certification::factory()->published()->create();
+        $coach = User::factory()->coach()->create();
+        $this->attachCoach($certification, $coach);
+        CoachAvailability::factory()->forCoach($coach)->onDay(1)->timeRange('09:00:00', '10:00:00')->create();
+
+        $google = Mockery::mock(GoogleCalendarService::class);
+        $google->shouldReceive('busyPeriods')->once()->andReturn([]);
+        $this->app->instance(GoogleCalendarService::class, $google);
+
+        $slots = app(MeetingAvailabilityService::class)->slotsForCertification($certification, Carbon::parse('2026-06-01'));
+
+        $this->assertCount(1, $slots);
+    }
+
+    public function test_adjacent_google_event_does_not_block_slot(): void
+    {
+        $certification = Certification::factory()->published()->create();
+        $coach = User::factory()->coach()->create();
+        $this->attachCoach($certification, $coach);
+        CoachAvailability::factory()->forCoach($coach)->onDay(1)->timeRange('09:00:00', '10:00:00')->create();
+
+        $google = Mockery::mock(GoogleCalendarService::class);
+        $google->shouldReceive('busyPeriods')->once()->andReturn([
+            ['start' => Carbon::parse('2026-06-01 10:00:00'), 'end' => Carbon::parse('2026-06-01 11:00:00')],
+        ]);
+        $this->app->instance(GoogleCalendarService::class, $google);
+
+        $slots = app(MeetingAvailabilityService::class)->slotsForCertification($certification, Carbon::parse('2026-06-01'));
+
+        $this->assertCount(1, $slots);
+        $this->assertSame('09:00', $slots->first()['slot_start']->format('H:i'));
     }
 
     public function test_returns_60min_slots_for_active_availability(): void

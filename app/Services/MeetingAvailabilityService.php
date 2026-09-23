@@ -21,6 +21,8 @@ use Illuminate\Support\Collection;
  */
 final class MeetingAvailabilityService
 {
+    public function __construct(private readonly GoogleCalendarService $googleCalendar) {}
+
     /**
      * 指定 Certification の担当コーチ集合について、指定日 1 日分の 60 分単位空きスロットを返す。
      *
@@ -34,7 +36,9 @@ final class MeetingAvailabilityService
         $dayEnd = $date->copy()->endOfDay();
         $dayOfWeek = $date->dayOfWeek;
 
-        $coaches = $certification->coaches()->get();
+        $coaches = $certification->coaches()
+            ->with('googleCredential')
+            ->get();
         if ($coaches->isEmpty()) {
             return collect();
         }
@@ -58,6 +62,8 @@ final class MeetingAvailabilityService
             ->groupBy('coach_id')
             ->map(fn ($rows) => $rows->map(fn (Meeting $m) => $m->scheduled_at->format('H:i'))->all());
 
+        $googleBusyByCoach = $coaches->mapWithKeys(fn ($coach) => [$coach->id => $this->googleCalendar->busyPeriods($coach, $date)]);
+
         /** @var array<string, int> $slotCounts スロット開始時刻(H:i) → available coach 数 */
         $slotCounts = [];
 
@@ -70,7 +76,11 @@ final class MeetingAvailabilityService
                 $coachId = $availability->coach_id;
                 $booked = $bookedByCoach[$coachId] ?? [];
 
-                if (! in_array($slotKey, $booked, true)) {
+                $slotEnd = $slot->copy()->addHour();
+                $googleBusy = collect($googleBusyByCoach[$coachId] ?? [])->contains(fn (array $period) => $slot->lt($period['end']) && $slotEnd->gt($period['start'])
+                );
+
+                if (! in_array($slotKey, $booked, true) && ! $googleBusy) {
                     $slotCounts[$slotKey] = ($slotCounts[$slotKey] ?? 0) + 1;
                 }
 

@@ -51,9 +51,20 @@ class AiChatController extends Controller
             $certificationId = $section->chapter?->part?->certification_id;
             if (! $certificationId) {
                 abort(422, 'Invalid section');
-            } if ($enrollment && ! $enrollment->certification()->whereKey($certificationId)->exists()) {
+            }
+
+            if ($enrollment && $enrollment->status !== EnrollmentStatus::Learning) {
+                abort(422, 'Enrollment is not active');
+            }
+
+            if ($enrollment && ! $enrollment->certification()->whereKey($certificationId)->exists()) {
                 abort(422, 'Enrollment does not match section');
-            } $enrollment = $enrollment ?: $u->enrollments()->whereHas('certification', fn ($q) => $q->whereKey($certificationId))->first();
+            }
+
+            $enrollment = $enrollment ?: $u->enrollments()
+                ->where('status', EnrollmentStatus::Learning->value)
+                ->whereHas('certification', fn ($q) => $q->whereKey($certificationId))
+                ->first();
             $existing = $u->aiChatConversations()->where('section_id', $section->id)->first();
             if ($existing && ! $req->filled('content') && ! $req->filled('message')) {
                 return response()->json(['conversation' => $existing]);

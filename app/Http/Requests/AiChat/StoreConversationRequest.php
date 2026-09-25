@@ -17,6 +17,7 @@ class StoreConversationRequest extends FormRequest
     {
         return [
             'content' => ['nullable', 'string', 'max:2000'],
+            'message' => ['nullable', 'string', 'max:2000'],
             'section_id' => ['nullable', 'string', 'exists:sections,id'],
             'enrollment_id' => ['nullable', 'string', 'exists:enrollments,id'],
         ];

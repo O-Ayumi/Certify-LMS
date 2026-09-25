@@ -55,12 +55,13 @@ class AiChatController extends Controller
                 abort(422, 'Enrollment does not match section');
             } $enrollment = $enrollment ?: $u->enrollments()->whereHas('certification', fn ($q) => $q->whereKey($certificationId))->first();
             $existing = $u->aiChatConversations()->where('section_id', $section->id)->first();
-            if ($existing && ! $req->filled('content')) {
+            if ($existing && ! $req->filled('content') && ! $req->filled('message')) {
                 return response()->json(['conversation' => $existing]);
             }
         } $c = $u->aiChatConversations()->create(['title' => '新しい相談', 'section_id' => $section?->id, 'enrollment_id' => $enrollment?->id]);
-        if ($req->filled('content')) {
-            $this->send($req->content, $c);
+        $initialContent = $req->input('content') ?? $req->input('message');
+        if ($initialContent) {
+            $this->send($initialContent, $c);
         }
 
         return $req->expectsJson() ? response()->json(['conversation' => $c->fresh('messages')]) : redirect()->route('ai-chat.conversations.show', $c);

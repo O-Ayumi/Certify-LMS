@@ -8,7 +8,7 @@
             <p class="text-sm text-ink-600">気になることを入力して「開始する」を押してください。教材を読みながら相談したい場合は、教材画面の右下にある AI ボタンから開くと、その教材の文脈が自動で AI に渡されます。</p>
 
             <x-form.textarea
-                name="content"
+                name="message"
                 label="最初の質問 (任意、後から送信可)"
                 :rows="3"
                 :maxlength="2000"

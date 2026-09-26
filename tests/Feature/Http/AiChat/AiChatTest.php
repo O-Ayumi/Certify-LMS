@@ -91,6 +91,7 @@ class AiChatTest extends TestCase
         $response->assertStatus(502)->assertJsonMissing(['secret api detail'])->assertJsonPath('upstream_status', 503);
         $this->assertDatabaseHas('ai_chat_messages', ['conversation_id' => $conversation->id, 'role' => 'user', 'content' => '再質問したい']);
         $this->assertDatabaseMissing('ai_chat_messages', ['conversation_id' => $conversation->id, 'role' => 'assistant', 'status' => 'error']);
+        $this->assertNotNull($conversation->fresh()->last_message_at);
     }
 
     public function test_message_requires_content(): void

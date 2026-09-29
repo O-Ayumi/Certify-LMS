@@ -13,6 +13,8 @@ use App\Services\CompletionEligibilityService;
 use App\Services\EnrollmentStatusChangeService;
 use App\UseCases\Certificate\IssueAction as IssueCertificateAction;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Throwable;
 
 /**
  * 受講生本人による「修了証を受け取る」自己発火 Action。
@@ -50,23 +52,34 @@ final class ReceiveCertificateAction
             throw new CompletionNotEligibleException;
         }
 
-        return DB::transaction(function () use ($enrollment) {
-            $enrollment->update([
-                'status' => EnrollmentStatus::Passed->value,
-                'passed_at' => now(),
-            ]);
+        $pdfPath = null;
 
-            $this->statusChanger->recordStatusChange(
-                $enrollment,
-                fromStatus: EnrollmentStatus::Learning,
-                toStatus: EnrollmentStatus::Passed,
-                changedBy: $enrollment->user,
-                reason: '受講生による修了証受領',
-            );
+        try {
+            return DB::transaction(function () use ($enrollment, &$pdfPath) {
+                $enrollment->update([
+                    'status' => EnrollmentStatus::Passed->value,
+                    'passed_at' => now(),
+                ]);
 
-            $certificate = ($this->issueCertificate)($enrollment->refresh());
+                $this->statusChanger->recordStatusChange(
+                    $enrollment,
+                    fromStatus: EnrollmentStatus::Learning,
+                    toStatus: EnrollmentStatus::Passed,
+                    changedBy: $enrollment->user,
+                    reason: '受講生による修了証受領',
+                );
 
-            return $certificate;
-        });
+                $certificate = ($this->issueCertificate)($enrollment->refresh());
+                $pdfPath = $certificate->pdf_path;
+
+                return $certificate;
+            });
+        } catch (Throwable $exception) {
+            if ($pdfPath !== null) {
+                Storage::disk('private')->delete($pdfPath);
+            }
+
+            throw $exception;
+        }
     }
 }

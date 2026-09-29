@@ -12,8 +12,12 @@ use App\Models\Enrollment;
 use App\Models\MockExam;
 use App\Models\MockExamSession;
 use App\Models\User;
+use App\Services\CertificatePdfService;
 use App\UseCases\Enrollment\ReceiveCertificateAction;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
+use Mockery;
+use RuntimeException;
 use Tests\TestCase;
 
 /**
@@ -26,6 +30,7 @@ class ReceiveCertificateActionTest extends TestCase
 
     public function test_successfully_issues_certificate_and_records_status_log_when_all_published_exams_passed(): void
     {
+        Storage::fake('private');
         $student = User::factory()->student()->inProgress()->create();
         $certification = Certification::factory()->published()->create();
         $enrollment = Enrollment::factory()->for($student)->for($certification)->learning()->create();
@@ -48,6 +53,36 @@ class ReceiveCertificateActionTest extends TestCase
             'changed_by_user_id' => $student->id,
             'changed_reason' => '受講生による修了証受領',
         ]);
+        Storage::disk('private')->assertExists($certificate->pdf_path);
+    }
+
+    public function test_rolls_back_completion_and_removes_pdf_when_pdf_generation_fails(): void
+    {
+        Storage::fake('private');
+        $student = User::factory()->student()->inProgress()->create();
+        $certification = Certification::factory()->published()->create();
+        $enrollment = Enrollment::factory()->for($student)->for($certification)->learning()->create();
+        $exam = MockExam::factory()->for($certification)->create(['is_published' => true]);
+        MockExamSession::factory()->for($enrollment)->for($exam)->create(['pass' => true]);
+
+        $pdf = Mockery::mock(CertificatePdfService::class);
+        $pdf->shouldReceive('store')->once()->andReturnUsing(function ($certificate, string $path): void {
+            Storage::disk('private')->put($path, '%PDF-1.4');
+            throw new RuntimeException('PDF generation failed');
+        });
+        $this->app->instance(CertificatePdfService::class, $pdf);
+
+        try {
+            app(ReceiveCertificateAction::class)($enrollment);
+            $this->fail('PDF generation failure should abort certificate receipt');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('PDF generation failed', $exception->getMessage());
+        }
+
+        $this->assertSame(EnrollmentStatus::Learning, $enrollment->refresh()->status);
+        $this->assertDatabaseCount('certificates', 0);
+        $this->assertDatabaseCount('enrollment_status_logs', 0);
+        $this->assertSame([], Storage::disk('private')->allFiles());
     }
 
     public function test_throws_when_not_eligible_due_to_unpassed_exam(): void

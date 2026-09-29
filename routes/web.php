@@ -6,6 +6,7 @@ use App\Http\Controllers\AiChatController;
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\Auth\OnboardingController;
 use App\Http\Controllers\BrowseController;
+use App\Http\Controllers\CertificateDownloadController;
 use App\Http\Controllers\CertificationCatalogController;
 use App\Http\Controllers\CertificationCategoryController;
 use App\Http\Controllers\CertificationCoachAssignmentController;
@@ -80,6 +81,9 @@ Route::post('/onboarding/{invitation}', [OnboardingController::class, 'store'])
 // 認証後の全ロール共通ルート
 // ============================================================
 Route::middleware('auth')->group(function () {
+    Route::get('certificates/{certificate}/download', CertificateDownloadController::class)
+        ->name('certificates.download');
+
     // 設定・プロフィールの表示・編集は全ロール可能
     Route::get('settings/profile', [ProfileController::class, 'show'])->name('settings.profile.edit');
     Route::patch('settings/profile', [ProfileController::class, 'update'])->name('settings.profile.update');

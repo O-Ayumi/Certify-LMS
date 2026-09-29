@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\Storage;
  *    - coach@certify-lms.test / coach2@certify-lms.test (coach、複数指導者シナリオ)
  *    - student@certify-lms.test (student、in_progress、Plan は PlanSeeder で紐づけ)
  *    - student-noquota@certify-lms.test (student、in_progress、面談残数 0 = 予約拒否の確認用。Plan / 消化は依存 Seeder で紐づけ)
+ *    - student-graduated@certify-lms.test (student、graduated、修了証 PDF の確認用)
  *
  * 2. **状態網羅 demo データ**(Factory 生成): admin / coach 視点で「一覧画面に各 status が並ぶ」「フィルタが効く」を担保する。
  *    - student × invited × 2 (招待中、Plan 未確定)
@@ -125,6 +126,19 @@ class UserSeeder extends Seeder
                 'password' => $defaultPassword,
                 'status' => UserStatus::InProgress->value,
                 'bio' => '基本情報を 3 ヶ月で合格目標。',
+                'profile_setup_completed' => true,
+                'email_verified_at' => $now,
+            ])
+            ->create();
+
+        User::factory()
+            ->student()
+            ->graduated()
+            ->state([
+                'name' => '卒業生花子',
+                'email' => 'student-graduated@certify-lms.test',
+                'password' => $defaultPassword,
+                'plan_expires_at' => $now->copy()->subDays(30),
                 'profile_setup_completed' => true,
                 'email_verified_at' => $now,
             ])

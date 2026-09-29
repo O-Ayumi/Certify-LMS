@@ -14,6 +14,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Mockery;
+use RuntimeException;
 use Tests\TestCase;
 
 class IssueActionTest extends TestCase
@@ -42,6 +43,8 @@ class IssueActionTest extends TestCase
         $this->assertSame($enrollment->id, $certificate->enrollment_id);
         $this->assertSame($enrollment->certification_id, $certificate->certification_id);
         $this->assertDatabaseHas('certificates', ['id' => $certificate->id]);
+        Storage::disk('private')->assertExists($certificate->pdf_path);
+        $this->assertStringStartsWith('%PDF-', Storage::disk('private')->get($certificate->pdf_path));
     }
 
     public function test_throws_when_enrollment_not_passed(): void
@@ -53,6 +56,25 @@ class IssueActionTest extends TestCase
         $this->expectException(EnrollmentNotPassedException::class);
 
         $action($enrollment);
+    }
+
+    public function test_removes_pdf_when_certificate_record_cannot_be_saved(): void
+    {
+        Storage::fake('private');
+        $enrollment = Enrollment::factory()->passed()->create();
+        Certificate::creating(static function (): void {
+            throw new RuntimeException('Certificate insert failed');
+        });
+
+        try {
+            app(IssueAction::class)($enrollment);
+            $this->fail('Certificate insert failure should abort issuance');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Certificate insert failed', $exception->getMessage());
+        }
+
+        $this->assertDatabaseCount('certificates', 0);
+        $this->assertSame([], Storage::disk('private')->allFiles());
     }
 
     public function test_throws_when_passed_status_but_passed_at_is_null(): void

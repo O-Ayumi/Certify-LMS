@@ -145,9 +145,27 @@ sail bin pint --test     # 整形漏れの確認（CI 相当のチェック）
 
 ### Stripe Webhook のローカル確認
 
-1. Stripe Dashboard で追加面談パックを公開し、`STRIPE_SECRET` にテスト用 Secret Key を設定します。
-2. Stripe CLI で `stripe listen --forward-to localhost:8000/webhooks/stripe` を実行し、表示された `whsec_...` を `STRIPE_WEBHOOK_SECRET` に設定します。
-3. 設定を反映してアプリケーションを再起動し、受講中の受講生で追加面談を購入します。Checkout 完了後、署名検証済み webhook を受けた時点で面談残数が加算されます。
-4. Stripe CLI の `stripe trigger checkout.session.completed` はアプリ内のPaymentと紐づかないテストイベントのため、残数加算には使えません。実際の購入フローをテストモードで完了してください。
+1. Stripe Dashboard をテストモードにし、テスト用 Secret Key (`sk_test_...`) を `.env` の `STRIPE_SECRET` に設定します。
+2. アプリケーションを起動します。まだ起動していない場合は次を実行します。
+    ```bash
+    sail up -d
+    ```
+3. Stripe CLIを初めて使う場合は、次を実行してStripeアカウントを認証します。表示されたURLを開き、その場で表示される新しい確認コードを入力してください。確認コードには有効期限があります。
+    ```bash
+    npx --yes @stripe/cli login
+    ```
+4. **Webhook待受専用のターミナルを1つ開き**、次を実行します。初回は表示された `whsec_...` を `.env` の `STRIPE_WEBHOOK_SECRET` に設定してください。
+    ```bash
+    npx --yes @stripe/cli listen \
+      --forward-to localhost:8000/webhooks/stripe \
+      --events checkout.session.completed,checkout.session.async_payment_succeeded,checkout.session.async_payment_failed,checkout.session.expired
+    ```
+    購入テスト中はこのターミナルを閉じず、コマンドを起動したままにしてください。停止するとStripeからローカルアプリへのWebhook転送が行われません。
+5. `.env` の変更後、別のターミナルで設定キャッシュをクリアします。
+    ```bash
+    sail artisan config:clear
+    ```
+6. ブラウザで受講中の受講生としてログインし、テストカードで追加面談を購入します。Checkout完了後、待受ターミナルにイベント転送が表示され、Webhookを処理した時点で面談残数が加算されます。
+7. Stripe CLI の `trigger checkout.session.completed` はアプリ内のPaymentと紐づかないテストイベントのため、残数加算には使えません。必ずアプリから開始した実際の購入フローをテストモードで完了してください。
 
 新しい環境変数やセットアップ手順を追加した場合は、`.env.example` と本 README に追記し、チームの誰でも環境を再現できる状態を保ってください。

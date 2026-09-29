@@ -23,6 +23,15 @@ class CertificateDownloadControllerTest extends TestCase
         Storage::fake('private');
     }
 
+    public function test_guest_is_redirected_to_login(): void
+    {
+        $certificate = $this->makeCertificate();
+        $this->storePdf($certificate);
+
+        $this->get(route('certificates.download', $certificate))
+            ->assertRedirect(route('login'));
+    }
+
     public function test_student_can_download_own_certificate_even_after_graduation(): void
     {
         $certificate = $this->makeCertificate(User::factory()->student()->graduated()->create());
@@ -57,9 +66,15 @@ class CertificateDownloadControllerTest extends TestCase
         $admin = User::factory()->admin()->create();
         $assignedCoach = User::factory()->coach()->create();
         $otherCoach = User::factory()->coach()->create();
+        $otherCertification = Certification::factory()->published()->create();
         CertificationCoachAssignment::factory()->create([
             'certification_id' => $certificate->certification_id,
             'user_id' => $assignedCoach->id,
+            'assigned_by_user_id' => $admin->id,
+        ]);
+        CertificationCoachAssignment::factory()->create([
+            'certification_id' => $otherCertification->id,
+            'user_id' => $otherCoach->id,
             'assigned_by_user_id' => $admin->id,
         ]);
 

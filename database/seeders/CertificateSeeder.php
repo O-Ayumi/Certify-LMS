@@ -96,16 +96,22 @@ final class CertificateSeeder extends Seeder
         $passedAt = $planExpiresAt->copy()->subDays(7);
         $startedAt = $planExpiresAt->copy()->subDays(90);
 
-        $enrollment = Enrollment::factory()
-            ->for($student)
-            ->for($certification)
-            ->state([
+        $enrollment = Enrollment::query()->firstOrCreate(
+            [
+                'user_id' => $student->id,
+                'certification_id' => $certification->id,
+            ],
+            [
                 'status' => EnrollmentStatus::Passed->value,
                 'current_term' => TermType::MockPractice->value,
                 'exam_date' => $examDate,
                 'passed_at' => $passedAt,
-            ])
-            ->create();
+            ],
+        );
+
+        if (! $enrollment->wasRecentlyCreated) {
+            return $enrollment;
+        }
 
         $enrollment->forceFill(['created_at' => $startedAt, 'updated_at' => $passedAt])->save();
 
@@ -133,6 +139,10 @@ final class CertificateSeeder extends Seeder
      */
     private function issueCertificateForEnrollment(Enrollment $enrollment): void
     {
+        if ($enrollment->certificate()->exists()) {
+            return;
+        }
+
         $issuedAt = $enrollment->passed_at ?? now();
 
         app(IssueCertificateAction::class)($enrollment, $issuedAt);

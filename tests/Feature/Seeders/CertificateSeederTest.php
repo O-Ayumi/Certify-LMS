@@ -7,6 +7,7 @@ namespace Tests\Feature\Seeders;
 use App\Models\Certificate;
 use App\Models\Certification;
 use App\Models\CertificationCoachAssignment;
+use App\Models\EnrollmentStatusLog;
 use App\Models\User;
 use Database\Seeders\CertificateSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -59,5 +60,15 @@ class CertificateSeederTest extends TestCase
         foreach ($certificates as $certificate) {
             Storage::disk('private')->assertExists($certificate->pdf_path);
         }
+
+        $certificateIds = $certificates->modelKeys();
+        $statusLogCount = EnrollmentStatusLog::query()->count();
+        $pdfFileCount = count(Storage::disk('private')->allFiles());
+
+        app(CertificateSeeder::class)->run();
+
+        $this->assertSame($certificateIds, Certificate::query()->orderBy('id')->pluck('id')->all());
+        $this->assertSame($statusLogCount, EnrollmentStatusLog::query()->count());
+        $this->assertSame($pdfFileCount, count(Storage::disk('private')->allFiles()));
     }
 }

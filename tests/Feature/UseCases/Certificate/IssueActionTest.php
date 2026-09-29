@@ -47,6 +47,29 @@ class IssueActionTest extends TestCase
         $this->assertStringStartsWith('%PDF-', Storage::disk('private')->get($certificate->pdf_path));
     }
 
+    public function test_certificate_template_contains_required_japanese_fields_only(): void
+    {
+        Storage::fake('private');
+        $enrollment = Enrollment::factory()->passed()->create();
+        $enrollment->user->update(['name' => '山田花子']);
+        $enrollment->certification->update([
+            'name' => '基本情報技術者試験',
+            'description' => 'EXCLUDED-CERTIFICATION-CODE',
+        ]);
+        $enrollment->certification->category->update(['name' => 'EXCLUDED-EXAM-CATEGORY']);
+
+        $certificate = app(IssueAction::class)($enrollment, Carbon::parse('2026-05-14'));
+        $html = view('certificates.pdf', ['certificate' => $certificate])->render();
+
+        $this->assertStringContainsString('山田花子', $html);
+        $this->assertStringContainsString('基本情報技術者試験', $html);
+        $this->assertStringContainsString('2026 年 5 月 14 日', $html);
+        $this->assertStringContainsString('修了証', $html);
+        $this->assertStringNotContainsString('EXCLUDED-CERTIFICATION-CODE', $html);
+        $this->assertStringNotContainsString('EXCLUDED-EXAM-CATEGORY', $html);
+        $this->assertStringStartsWith('%PDF-', Storage::disk('private')->get($certificate->pdf_path));
+    }
+
     public function test_throws_when_enrollment_not_passed(): void
     {
         $enrollment = Enrollment::factory()->learning()->create();

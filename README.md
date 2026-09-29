@@ -141,5 +141,13 @@ sail bin pint --test     # 整形漏れの確認（CI 相当のチェック）
 `.env.example` をコピーするだけで、すべての機能がローカルで動作します（メールは Mailpit に配信されます）。
 
 - `PUSHER_*` — チャットのリアルタイム配信に使用します。有効にする場合は Pusher のキーを取得して設定し、`BROADCAST_DRIVER=pusher` に変更してください。未設定（既定の `BROADCAST_DRIVER=log`）でもメッセージの送受信自体は動作し、相手画面へのリアルタイム反映のみ行われません
+- `STRIPE_SECRET` / `STRIPE_WEBHOOK_SECRET` — 追加面談購入の Stripe Checkout と webhook 署名検証に使用します。
+
+### Stripe Webhook のローカル確認
+
+1. Stripe Dashboard で追加面談パックを公開し、`STRIPE_SECRET` にテスト用 Secret Key を設定します。
+2. Stripe CLI で `stripe listen --forward-to localhost:8000/webhooks/stripe` を実行し、表示された `whsec_...` を `STRIPE_WEBHOOK_SECRET` に設定します。
+3. 設定を反映してアプリケーションを再起動し、受講中の受講生で追加面談を購入します。Checkout 完了後、署名検証済み webhook を受けた時点で面談残数が加算されます。
+4. Stripe CLI の `stripe trigger checkout.session.completed` はアプリ内のPaymentと紐づかないテストイベントのため、残数加算には使えません。実際の購入フローをテストモードで完了してください。
 
 新しい環境変数やセットアップ手順を追加した場合は、`.env.example` と本 README に追記し、チームの誰でも環境を再現できる状態を保ってください。

@@ -122,7 +122,7 @@
 
         <x-card padding="md" shadow="sm">
             <x-slot:header>購入数</x-slot:header>
-            <div class="text-3xl font-bold text-ink-900 tabular-nums">{{ class_exists(\App\Models\Payment::class) ? $plan->payments->count() : 0 }}</div>
+            <div class="text-3xl font-bold text-ink-900 tabular-nums">{{ $plan->payments_count }}</div>
             <div class="text-sm text-ink-500">件(直近 20 件のみ表示)</div>
         </x-card>
     </div>

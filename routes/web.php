@@ -22,6 +22,7 @@ use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\LearningHourTargetController;
 use App\Http\Controllers\MeetingController;
 use App\Http\Controllers\MeetingPackController;
+use App\Http\Controllers\MeetingQuotaCheckoutController;
 use App\Http\Controllers\MeetingQuotaHistoryController;
 use App\Http\Controllers\MockExamAnswerController;
 use App\Http\Controllers\MockExamCatalogController;
@@ -51,6 +52,7 @@ use App\Http\Controllers\Settings\GoogleCalendarController;
 use App\Http\Controllers\Settings\PasswordController;
 use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\SettingsDefaultEnrollmentController;
+use App\Http\Controllers\StripeWebhookController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WeakDrillController;
 use App\Http\Controllers\WeakDrillResultController;
@@ -61,6 +63,8 @@ Route::get('/', function () {
         ? redirect()->route('dashboard.index')
         : redirect('/login');
 });
+
+Route::post('webhooks/stripe', StripeWebhookController::class)->name('webhooks.stripe');
 
 // ============================================================
 // 認証フロー(オンボーディング: 招待 URL 経由の初回登録)
@@ -148,6 +152,13 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin/qa-board')->name('admin
 // 受講生専用ルート(受講中ステータスのみ通過、卒業ステータスはロック)
 // ============================================================
 Route::middleware(['auth', 'role:student', 'active-learning'])->group(function () {
+    Route::get('meeting-quota/checkout', [MeetingQuotaCheckoutController::class, 'index'])
+        ->name('meeting-quota.checkout.select');
+    Route::post('meeting-quota/checkout', [MeetingQuotaCheckoutController::class, 'store'])
+        ->name('meeting-quota.checkout.create');
+    Route::get('meeting-quota/success', [MeetingQuotaCheckoutController::class, 'success'])
+        ->name('meeting-quota.success');
+
     Route::prefix('ai-chat')->name('ai-chat.')->group(function () {
         Route::get('/', [AiChatController::class, 'index'])->name('index');
         Route::post('conversations', [AiChatController::class, 'store'])->name('conversations.store');

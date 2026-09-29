@@ -10,7 +10,10 @@ final class ShowAction
 {
     public function __invoke(MeetingPack $plan): MeetingPack
     {
-        // 購入データの実連携は後続チケット。現時点は既存画面の空表示を利用する。
-        return $plan->load(['createdBy', 'updatedBy']);
+        return $plan->loadCount('payments')->load([
+            'createdBy',
+            'updatedBy',
+            'payments' => fn ($query) => $query->with('user')->latest()->limit(20),
+        ]);
     }
 }

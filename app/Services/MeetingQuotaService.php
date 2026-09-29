@@ -57,7 +57,7 @@ final class MeetingQuotaService
         // Eager Loading しない限り未定義クラスを参照しない)。
         $with = ['grantedBy'];
         if (class_exists('App\\Models\\Payment')) {
-            $with[] = 'relatedPayment.meetingPack';
+            $with[] = 'relatedPayment';
         }
         if (class_exists('App\\Models\\Meeting')) {
             $with[] = 'relatedMeeting.enrollment.certification';

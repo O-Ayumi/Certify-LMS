@@ -14,8 +14,8 @@ use App\Models\Certification;
 use App\Models\Enrollment;
 use App\Models\EnrollmentStatusLog;
 use App\Models\User;
+use App\UseCases\Certificate\IssueAction as IssueCertificateAction;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Str;
 
 /**
  * 卒業生向けの修了証 + 過去 Enrollment 補完シーダー。
@@ -35,11 +35,14 @@ use Illuminate\Support\Str;
  */
 final class CertificateSeeder extends Seeder
 {
+    private const FIXED_CERTIFICATE_STUDENT_EMAIL = 'student-graduated@certify-lms.test';
+
     public function run(): void
     {
         $graduatedStudents = User::query()
             ->where('role', UserRole::Student->value)
             ->where('status', UserStatus::Graduated->value)
+            ->orderByRaw('CASE WHEN email = ? THEN 0 ELSE 1 END', [self::FIXED_CERTIFICATE_STUDENT_EMAIL])
             ->orderBy('created_at')
             ->get();
 
@@ -60,8 +63,19 @@ final class CertificateSeeder extends Seeder
             return;
         }
 
+        $assignedCertifications = $publishedCertifications
+            ->load('coaches')
+            ->filter(fn (Certification $certification): bool => $certification->coaches->count() === 1)
+            ->values();
+
+        if ($assignedCertifications->isEmpty()) {
+            $this->command?->warn('CertificateSeeder: 単独担当の公開資格がありません。先に CertificationSeeder を実行してください。');
+
+            return;
+        }
+
         foreach ($graduatedStudents as $i => $student) {
-            $certification = $publishedCertifications->get($i % $publishedCertifications->count());
+            $certification = $assignedCertifications->get($i % $assignedCertifications->count());
             if ($certification === null) {
                 continue;
             }
@@ -82,16 +96,22 @@ final class CertificateSeeder extends Seeder
         $passedAt = $planExpiresAt->copy()->subDays(7);
         $startedAt = $planExpiresAt->copy()->subDays(90);
 
-        $enrollment = Enrollment::factory()
-            ->for($student)
-            ->for($certification)
-            ->state([
+        $enrollment = Enrollment::query()->firstOrCreate(
+            [
+                'user_id' => $student->id,
+                'certification_id' => $certification->id,
+            ],
+            [
                 'status' => EnrollmentStatus::Passed->value,
                 'current_term' => TermType::MockPractice->value,
                 'exam_date' => $examDate,
                 'passed_at' => $passedAt,
-            ])
-            ->create();
+            ],
+        );
+
+        if (! $enrollment->wasRecentlyCreated) {
+            return $enrollment;
+        }
 
         $enrollment->forceFill(['created_at' => $startedAt, 'updated_at' => $passedAt])->save();
 
@@ -119,14 +139,12 @@ final class CertificateSeeder extends Seeder
      */
     private function issueCertificateForEnrollment(Enrollment $enrollment): void
     {
+        if ($enrollment->certificate()->exists()) {
+            return;
+        }
+
         $issuedAt = $enrollment->passed_at ?? now();
 
-        $certificate = Certificate::factory()
-            ->forEnrollment($enrollment)
-            ->state([
-                'pdf_path' => 'certificates/'.Str::ulid().'.pdf',
-                'issued_at' => $issuedAt,
-            ])
-            ->create();
+        app(IssueCertificateAction::class)($enrollment, $issuedAt);
     }
 }

@@ -30,8 +30,12 @@ class PartPolicyTest extends TestCase
 
         $this->assertTrue($policy->viewAny($admin, $cert));
         $this->assertTrue($policy->view($admin, $part));
+        $this->assertTrue($policy->create($admin, $cert));
         $this->assertTrue($policy->update($admin, $part));
         $this->assertTrue($policy->delete($admin, $part));
+        $this->assertTrue($policy->publish($admin, $part));
+        $this->assertTrue($policy->unpublish($admin, $part));
+        $this->assertTrue($policy->reorder($admin, $cert));
     }
 
     public function test_coach_assigned_only(): void
@@ -40,19 +44,34 @@ class PartPolicyTest extends TestCase
         $admin = User::factory()->admin()->create();
         $assignedCert = Certification::factory()->published()->create();
         $otherCert = Certification::factory()->published()->create();
-        CertificationCoachAssignment::create([
+        $assignment = CertificationCoachAssignment::create([
             'id' => (string) Str::ulid(),
             'certification_id' => $assignedCert->id,
             'user_id' => $coach->id,
             'assigned_by_user_id' => $admin->id,
             'assigned_at' => now(),
         ]);
-        $assignedPart = Part::factory()->for($assignedCert)->published()->create();
+        $assignedPart = Part::factory()->for($assignedCert)->draft()->create();
         $otherPart = Part::factory()->for($otherCert)->published()->create();
         $policy = new PartPolicy;
 
+        $this->assertTrue($policy->viewAny($coach, $assignedCert));
+        $this->assertTrue($policy->view($coach, $assignedPart));
+        $this->assertTrue($policy->create($coach, $assignedCert));
         $this->assertTrue($policy->update($coach, $assignedPart));
+        $this->assertTrue($policy->delete($coach, $assignedPart));
+        $this->assertTrue($policy->publish($coach, $assignedPart));
+        $this->assertTrue($policy->unpublish($coach, $assignedPart));
+        $this->assertTrue($policy->reorder($coach, $assignedCert));
+        $this->assertFalse($policy->viewAny($coach, $otherCert));
+        $this->assertFalse($policy->view($coach, $otherPart));
         $this->assertFalse($policy->update($coach, $otherPart));
+
+        $assignment->update(['unassigned_at' => now()]);
+
+        $this->assertFalse($policy->viewAny($coach, $assignedCert));
+        $this->assertFalse($policy->view($coach, $assignedPart));
+        $this->assertFalse($policy->update($coach, $assignedPart));
     }
 
     public function test_student_view_published_only(): void

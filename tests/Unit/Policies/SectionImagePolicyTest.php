@@ -41,7 +41,7 @@ class SectionImagePolicyTest extends TestCase
         $admin = User::factory()->admin()->create();
         $assignedCert = Certification::factory()->published()->create();
         $otherCert = Certification::factory()->published()->create();
-        CertificationCoachAssignment::create([
+        $assignment = CertificationCoachAssignment::create([
             'id' => (string) Str::ulid(),
             'certification_id' => $assignedCert->id,
             'user_id' => $coach->id,
@@ -54,10 +54,19 @@ class SectionImagePolicyTest extends TestCase
         $otherSection = Section::factory()->for(
             Chapter::factory()->for(Part::factory()->for($otherCert)->published())->published()
         )->published()->create();
+        $assignedImage = SectionImage::factory()->for($assignedSection)->create();
+        $otherImage = SectionImage::factory()->for($otherSection)->create();
         $policy = new SectionImagePolicy;
 
         $this->assertTrue($policy->create($coach, $assignedSection));
+        $this->assertTrue($policy->delete($coach, $assignedImage));
         $this->assertFalse($policy->create($coach, $otherSection));
+        $this->assertFalse($policy->delete($coach, $otherImage));
+
+        $assignment->update(['unassigned_at' => now()]);
+
+        $this->assertFalse($policy->create($coach, $assignedSection));
+        $this->assertFalse($policy->delete($coach, $assignedImage));
     }
 
     public function test_student_cannot(): void

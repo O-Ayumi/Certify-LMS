@@ -35,6 +35,10 @@ class SectionQuestionPolicyTest extends TestCase
         $this->assertTrue($policy->viewAny($admin, $section));
         $this->assertTrue($policy->view($admin, $question));
         $this->assertTrue($policy->update($admin, $question));
+        $this->assertTrue($policy->create($admin, $section));
+        $this->assertTrue($policy->delete($admin, $question));
+        $this->assertTrue($policy->publish($admin, $question));
+        $this->assertTrue($policy->unpublish($admin, $question));
     }
 
     public function test_student_with_enrollment_can_view_published_question(): void
@@ -73,22 +77,39 @@ class SectionQuestionPolicyTest extends TestCase
         $coach = User::factory()->coach()->create();
         $admin = User::factory()->admin()->create();
         $assignedCert = Certification::factory()->published()->create();
-        CertificationCoachAssignment::create([
+        $assignment = CertificationCoachAssignment::create([
             'id' => (string) Str::ulid(),
             'certification_id' => $assignedCert->id,
             'user_id' => $coach->id,
             'assigned_by_user_id' => $admin->id,
             'assigned_at' => now(),
         ]);
-        $assignedQuestion = SectionQuestion::factory()->published()->create([
-            'section_id' => Section::factory()->state(fn () => [
-                'chapter_id' => Chapter::factory()
-                    ->for(Part::factory()->for($assignedCert))
-                    ->create()->id,
-            ]),
-        ]);
+        $assignedSection = Section::factory()->for(
+            Chapter::factory()->for(Part::factory()->for($assignedCert)->published())->published()
+        )->published()->create();
+        $otherCert = Certification::factory()->published()->create();
+        $otherSection = Section::factory()->for(
+            Chapter::factory()->for(Part::factory()->for($otherCert)->published())->published()
+        )->published()->create();
+        $assignedQuestion = SectionQuestion::factory()->for($assignedSection)->draft()->create();
+        $otherQuestion = SectionQuestion::factory()->for($otherSection)->published()->create();
         $policy = new SectionQuestionPolicy;
 
+        $this->assertTrue($policy->viewAny($coach, $assignedSection));
+        $this->assertTrue($policy->view($coach, $assignedQuestion));
+        $this->assertTrue($policy->create($coach, $assignedSection));
         $this->assertTrue($policy->update($coach, $assignedQuestion));
+        $this->assertTrue($policy->delete($coach, $assignedQuestion));
+        $this->assertTrue($policy->publish($coach, $assignedQuestion));
+        $this->assertTrue($policy->unpublish($coach, $assignedQuestion));
+        $this->assertFalse($policy->viewAny($coach, $otherSection));
+        $this->assertFalse($policy->view($coach, $otherQuestion));
+        $this->assertFalse($policy->update($coach, $otherQuestion));
+
+        $assignment->update(['unassigned_at' => now()]);
+
+        $this->assertFalse($policy->viewAny($coach, $assignedSection));
+        $this->assertFalse($policy->view($coach, $assignedQuestion));
+        $this->assertFalse($policy->update($coach, $assignedQuestion));
     }
 }

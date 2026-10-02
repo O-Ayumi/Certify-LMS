@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Http\Part;
 
 use App\Models\Certification;
+use App\Models\CertificationCoachAssignment;
 use App\Models\Part;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -31,13 +32,35 @@ class IndexTest extends TestCase
     public function test_assigned_coach_can_view_parts(): void
     {
         $coach = User::factory()->coach()->create();
+        $secondCoach = User::factory()->coach()->create();
         $cert = Certification::factory()->published()->create();
         $this->assignCoach($coach, $cert);
+        $this->assignCoach($secondCoach, $cert);
+        $otherAssignedCert = Certification::factory()->published()->create();
+        $this->assignCoach($coach, $otherAssignedCert);
+        $unassignedCert = Certification::factory()->published()->create();
         Part::factory()->forCertification($cert)->create();
+        $part = Part::factory()->forCertification($cert)->draft()->create();
 
         $this->actingAs($coach)
             ->get(route('admin.certifications.parts.index', $cert))
             ->assertOk();
+
+        $this->get(route('admin.parts.show', $part))->assertOk();
+        $this->get(route('admin.certifications.parts.index', $otherAssignedCert))->assertOk();
+        $this->get(route('admin.certifications.parts.index', $unassignedCert))->assertForbidden();
+        $this->actingAs($secondCoach)
+            ->get(route('admin.parts.show', $part))
+            ->assertOk();
+
+        CertificationCoachAssignment::query()
+            ->where('certification_id', $cert->id)
+            ->where('user_id', $coach->id)
+            ->update(['unassigned_at' => now()]);
+
+        $this->actingAs($coach)
+            ->get(route('admin.parts.show', $part))
+            ->assertForbidden();
     }
 
     public function test_non_assigned_coach_cannot_view_parts(): void

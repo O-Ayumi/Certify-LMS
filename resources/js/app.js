@@ -4,6 +4,7 @@
  */
 
 import './bootstrap';
+import './content-management/reorder';
 
 import { initModals } from './components/modal';
 import { initDropdowns } from './components/dropdown';

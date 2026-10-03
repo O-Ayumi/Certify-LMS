@@ -28,16 +28,20 @@ class IndexTest extends TestCase
             ->assertViewHas('parts');
     }
 
-    public function test_assigned_coach_can_view_parts(): void
+    public function test_assigned_coach_sees_parts_in_order_ascending(): void
     {
         $coach = User::factory()->coach()->create();
         $cert = Certification::factory()->published()->create();
         $this->assignCoach($coach, $cert);
-        Part::factory()->forCertification($cert)->create();
+        Part::factory()->forCertification($cert)->create(['order' => 3]);
+        Part::factory()->forCertification($cert)->create(['order' => 1]);
+        Part::factory()->forCertification($cert)->create(['order' => 2]);
 
-        $this->actingAs($coach)
+        $response = $this->actingAs($coach)
             ->get(route('admin.certifications.parts.index', $cert))
             ->assertOk();
+
+        $this->assertSame([1, 2, 3], $response->viewData('parts')->pluck('order')->all());
     }
 
     public function test_non_assigned_coach_cannot_view_parts(): void

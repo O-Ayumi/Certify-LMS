@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Http\SectionQuestion;
 
 use App\Models\Certification;
+use App\Models\CertificationCoachAssignment;
 use App\Models\SectionQuestion;
 use App\Models\SectionQuestionOption;
 use App\Models\User;
@@ -183,5 +184,57 @@ class CrudTest extends TestCase
             ->assertRedirect();
 
         $this->assertDatabaseMissing('section_questions', ['id' => $question->id]);
+    }
+
+    public function test_assigned_coach_can_manage_section_questions_and_revoked_access_is_denied(): void
+    {
+        $coach = User::factory()->coach()->create();
+        $cert = Certification::factory()->published()->create();
+        $this->assignCoach($coach, $cert);
+        [, , $section] = $this->makePartChain($cert, 'draft');
+        $category = $this->makeCategory($cert);
+
+        $this->actingAs($coach)
+            ->get(route('admin.sections.questions.index', $section))
+            ->assertOk();
+        $this->get(route('admin.sections.questions.create', $section))->assertOk();
+
+        $this->post(route('admin.sections.questions.store', $section), [
+            'body' => '担当コーチが作成した問題',
+            'category_id' => $category->id,
+            'options' => [
+                ['body' => '正解', 'is_correct' => true, 'order' => 0],
+                ['body' => '不正解', 'is_correct' => false, 'order' => 1],
+            ],
+        ])->assertRedirect();
+
+        $question = SectionQuestion::query()->where('body', '担当コーチが作成した問題')->firstOrFail();
+
+        $this->get(route('admin.section-questions.show', $question))->assertOk();
+        $this->patch(route('admin.section-questions.update', $question), [
+            'body' => '担当コーチが更新した問題',
+            'category_id' => $category->id,
+        ])->assertRedirect();
+        $this->post(route('admin.section-questions.publish', $question))->assertRedirect();
+        $this->post(route('admin.section-questions.unpublish', $question))->assertRedirect();
+
+        $questionAfterRevocation = SectionQuestion::factory()
+            ->forSection($section)
+            ->forCategory($category)
+            ->withOptions(2)
+            ->draft()
+            ->create();
+
+        $this->delete(route('admin.section-questions.destroy', $question))->assertRedirect();
+
+        CertificationCoachAssignment::query()
+            ->where('certification_id', $cert->id)
+            ->where('user_id', $coach->id)
+            ->update(['unassigned_at' => now()]);
+
+        $this->get(route('admin.section-questions.show', $questionAfterRevocation))->assertForbidden();
+        $this->delete(route('admin.section-questions.destroy', $questionAfterRevocation))
+            ->assertForbidden();
+        $this->get(route('admin.sections.questions.index', $section))->assertForbidden();
     }
 }

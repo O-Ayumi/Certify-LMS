@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Http\Chapter;
 
 use App\Models\Certification;
+use App\Models\CertificationCoachAssignment;
 use App\Models\Chapter;
 use App\Models\Part;
 use App\Models\User;
@@ -59,5 +60,54 @@ class CrudTest extends TestCase
         $this->actingAs($admin)
             ->deleteJson(route('admin.chapters.destroy', $chapter))
             ->assertStatus(409);
+    }
+
+    public function test_assigned_coach_can_view_create_and_update_chapter(): void
+    {
+        $coach = User::factory()->coach()->create();
+        $cert = Certification::factory()->published()->create();
+        $this->assignCoach($coach, $cert);
+        $part = Part::factory()->forCertification($cert)->draft()->create();
+        $chapter = Chapter::factory()->forPart($part)->draft()->create();
+
+        $this->actingAs($coach)
+            ->get(route('admin.chapters.show', $chapter))
+            ->assertOk();
+
+        $this->post(route('admin.parts.chapters.store', $part), ['title' => '追加 Chapter'])
+            ->assertRedirect();
+
+        $createdChapter = Chapter::query()->where('title', '追加 Chapter')->firstOrFail();
+
+        $this->post(route('admin.chapters.publish', $createdChapter))->assertRedirect();
+        $this->post(route('admin.chapters.unpublish', $createdChapter))->assertRedirect();
+        $this->patch(route('admin.parts.chapters.reorder', $part), [
+            'ids' => [$chapter->id, $createdChapter->id],
+        ])->assertRedirect();
+
+        $this->patch(route('admin.chapters.update', $chapter), [
+            'title' => '更新 Chapter',
+            'description' => '担当コーチによる更新',
+        ])->assertRedirect(route('admin.chapters.show', $chapter));
+
+        $this->assertSame('更新 Chapter', $chapter->fresh()->title);
+        $this->delete(route('admin.chapters.destroy', $createdChapter))->assertRedirect();
+
+        $otherCert = Certification::factory()->published()->create();
+        $otherPart = Part::factory()->forCertification($otherCert)->draft()->create();
+        $otherChapter = Chapter::factory()->forPart($otherPart)->draft()->create();
+
+        $this->get(route('admin.chapters.show', $otherChapter))->assertForbidden();
+        $this->patch(route('admin.chapters.update', $otherChapter), ['title' => '担当外'])
+            ->assertForbidden();
+
+        CertificationCoachAssignment::query()
+            ->where('certification_id', $cert->id)
+            ->where('user_id', $coach->id)
+            ->update(['unassigned_at' => now()]);
+
+        $this->get(route('admin.chapters.show', $chapter))->assertForbidden();
+        $this->patch(route('admin.chapters.update', $chapter), ['title' => '拒否'])
+            ->assertForbidden();
     }
 }

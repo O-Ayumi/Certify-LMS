@@ -112,6 +112,7 @@ class AiChatController extends Controller
             abort(429);
         }
         $user = $conversation->messages()->create(['role' => 'user', 'content' => $content, 'status' => 'completed']);
+        $conversation->update(['last_message_at' => now()]);
         $history = $conversation->messages()->latest()->limit(config('ai-chat.max_history', 20))->get()->reverse();
         $context = ['certification' => ($conversation->enrollment ?? (auth()->user()->defaultEnrollment?->status === EnrollmentStatus::Learning ? auth()->user()->defaultEnrollment : null))?->certification?->name, 'section' => $conversation->section?->title];
         try {
@@ -123,7 +124,6 @@ class AiChatController extends Controller
         } catch (\Throwable $e) {
             abort(response()->json(['message' => 'AI unavailable', 'upstream_status' => $e->getCode() ?: 502], 502));
         }
-        $conversation->update(['last_message_at' => now()]);
 
         return ['user_message' => $user, 'assistant_message' => $assistant, 'conversation' => $conversation->fresh()];
     }

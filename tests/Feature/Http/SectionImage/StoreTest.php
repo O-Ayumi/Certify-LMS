@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Tests\Feature\Http\SectionImage;
 
 use App\Models\Certification;
+use App\Models\CertificationCoachAssignment;
+use App\Models\SectionImage;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -66,5 +68,45 @@ class StoreTest extends TestCase
         $this->actingAs($admin)
             ->postJson(route('admin.sections.images.store', $section), ['file' => $file])
             ->assertStatus(422);
+    }
+
+    public function test_assigned_coach_can_upload_and_delete_image_but_revoked_coach_cannot_delete(): void
+    {
+        Storage::fake('public');
+
+        $coach = User::factory()->coach()->create();
+        $secondCoach = User::factory()->coach()->create();
+        $cert = Certification::factory()->published()->create();
+        $this->assignCoach($coach, $cert);
+        $this->assignCoach($secondCoach, $cert);
+        [, , $section] = $this->makePartChain($cert, 'draft');
+        $otherCert = Certification::factory()->published()->create();
+        [, , $otherSection] = $this->makePartChain($otherCert, 'draft');
+
+        $this->actingAs($coach)
+            ->postJson(route('admin.sections.images.store', $otherSection), [
+                'file' => UploadedFile::fake()->image('foreign-image.png', 800, 600),
+            ])
+            ->assertForbidden();
+
+        $response = $this->actingAs($coach)
+            ->postJson(route('admin.sections.images.store', $section), [
+                'file' => UploadedFile::fake()->image('coach-image.png', 800, 600),
+            ])
+            ->assertCreated();
+
+        $image = SectionImage::findOrFail($response->json('id'));
+
+        CertificationCoachAssignment::query()
+            ->where('certification_id', $cert->id)
+            ->where('user_id', $coach->id)
+            ->update(['unassigned_at' => now()]);
+
+        $this->deleteJson(route('admin.section-images.destroy', $image))
+            ->assertForbidden();
+
+        $this->actingAs($secondCoach)
+            ->deleteJson(route('admin.section-images.destroy', $image))
+            ->assertNoContent();
     }
 }

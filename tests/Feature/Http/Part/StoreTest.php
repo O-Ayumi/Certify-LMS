@@ -49,9 +49,42 @@ class StoreTest extends TestCase
     {
         $coach = User::factory()->coach()->create();
         $cert = Certification::factory()->published()->create();
+        $part = Part::factory()->forCertification($cert)->draft()->create();
 
         $this->actingAs($coach)
             ->post(route('admin.certifications.parts.store', $cert), ['title' => 'X'])
             ->assertForbidden();
+
+        $this->patch(route('admin.parts.update', $part), ['title' => 'X'])
+            ->assertForbidden();
+    }
+
+    public function test_assigned_coach_can_create_and_update_part(): void
+    {
+        $coach = User::factory()->coach()->create();
+        $cert = Certification::factory()->published()->create();
+        $this->assignCoach($coach, $cert);
+        $part = Part::factory()->forCertification($cert)->draft()->create();
+
+        $this->actingAs($coach)
+            ->post(route('admin.certifications.parts.store', $cert), ['title' => '追加 Part'])
+            ->assertRedirect();
+
+        $createdPart = Part::query()->where('title', '追加 Part')->firstOrFail();
+
+        $this->post(route('admin.parts.publish', $createdPart))->assertRedirect();
+        $this->post(route('admin.parts.unpublish', $createdPart))->assertRedirect();
+        $this->patch(route('admin.certifications.parts.reorder', $cert), [
+            'ids' => [$part->id, $createdPart->id],
+        ])->assertRedirect();
+
+        $this->patch(route('admin.parts.update', $part), [
+            'title' => '更新 Part',
+            'description' => '担当コーチによる更新',
+        ])->assertRedirect(route('admin.parts.show', $part));
+
+        $this->assertSame('更新 Part', $part->fresh()->title);
+        $this->delete(route('admin.parts.destroy', $part))
+            ->assertRedirect(route('admin.certifications.parts.index', $cert));
     }
 }

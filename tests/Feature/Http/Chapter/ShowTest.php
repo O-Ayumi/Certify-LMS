@@ -10,6 +10,7 @@ use App\Models\Part;
 use App\Models\Section;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Support\ContentTestHelpers;
 use Tests\TestCase;
 
 /**
@@ -18,7 +19,7 @@ use Tests\TestCase;
  */
 class ShowTest extends TestCase
 {
-    use RefreshDatabase;
+    use ContentTestHelpers, RefreshDatabase;
 
     public function test_sections_are_listed_in_order_ascending(): void
     {
@@ -42,5 +43,35 @@ class ShowTest extends TestCase
             $response->viewData('chapter')->sections->pluck('order')->all(),
             'Chapter 詳細の Section 一覧は order 昇順で並ぶはず(登録順ではない)',
         );
+    }
+
+    public function test_assigned_coach_sees_sections_in_order_ascending(): void
+    {
+        $coach = User::factory()->coach()->create();
+        $cert = Certification::factory()->published()->create();
+        $this->assignCoach($coach, $cert);
+        $part = Part::factory()->forCertification($cert)->published()->create();
+        $chapter = Chapter::factory()->forPart($part)->published()->create();
+        Section::factory()->forChapter($chapter)->published()->create(['order' => 3]);
+        Section::factory()->forChapter($chapter)->published()->create(['order' => 1]);
+        Section::factory()->forChapter($chapter)->published()->create(['order' => 2]);
+
+        $response = $this->actingAs($coach)
+            ->get(route('admin.chapters.show', $chapter))
+            ->assertOk();
+
+        $this->assertSame([1, 2, 3], $response->viewData('chapter')->sections->pluck('order')->all());
+    }
+
+    public function test_non_assigned_coach_cannot_view_chapter_sections(): void
+    {
+        $coach = User::factory()->coach()->create();
+        $cert = Certification::factory()->published()->create();
+        $part = Part::factory()->forCertification($cert)->published()->create();
+        $chapter = Chapter::factory()->forPart($part)->published()->create();
+
+        $this->actingAs($coach)
+            ->get(route('admin.chapters.show', $chapter))
+            ->assertForbidden();
     }
 }

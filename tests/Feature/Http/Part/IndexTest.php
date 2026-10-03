@@ -29,7 +29,7 @@ class IndexTest extends TestCase
             ->assertViewHas('parts');
     }
 
-    public function test_assigned_coach_can_view_parts(): void
+    public function test_assigned_coach_sees_parts_in_order_ascending(): void
     {
         $coach = User::factory()->coach()->create();
         $secondCoach = User::factory()->coach()->create();
@@ -39,13 +39,15 @@ class IndexTest extends TestCase
         $otherAssignedCert = Certification::factory()->published()->create();
         $this->assignCoach($coach, $otherAssignedCert);
         $unassignedCert = Certification::factory()->published()->create();
-        Part::factory()->forCertification($cert)->create();
-        $part = Part::factory()->forCertification($cert)->draft()->create();
+        $part = Part::factory()->forCertification($cert)->draft()->create(['order' => 3]);
+        Part::factory()->forCertification($cert)->create(['order' => 1]);
+        Part::factory()->forCertification($cert)->create(['order' => 2]);
 
-        $this->actingAs($coach)
+        $response = $this->actingAs($coach)
             ->get(route('admin.certifications.parts.index', $cert))
             ->assertOk();
 
+        $this->assertSame([1, 2, 3], $response->viewData('parts')->pluck('order')->all());
         $this->get(route('admin.parts.show', $part))->assertOk();
         $this->get(route('admin.certifications.parts.index', $otherAssignedCert))->assertOk();
         $this->get(route('admin.certifications.parts.index', $unassignedCert))->assertForbidden();

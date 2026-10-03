@@ -44,7 +44,7 @@ class ChapterPolicyTest extends TestCase
         $admin = User::factory()->admin()->create();
         $assignedCert = Certification::factory()->published()->create();
         $otherCert = Certification::factory()->published()->create();
-        CertificationCoachAssignment::create([
+        $assignment = CertificationCoachAssignment::create([
             'id' => (string) Str::ulid(),
             'certification_id' => $assignedCert->id,
             'user_id' => $coach->id,
@@ -53,12 +53,27 @@ class ChapterPolicyTest extends TestCase
         ]);
         $assignedPart = Part::factory()->for($assignedCert)->published()->create();
         $otherPart = Part::factory()->for($otherCert)->published()->create();
-        $assignedChapter = Chapter::factory()->for($assignedPart)->published()->create();
+        $assignedChapter = Chapter::factory()->for($assignedPart)->draft()->create();
         $otherChapter = Chapter::factory()->for($otherPart)->published()->create();
         $policy = new ChapterPolicy;
 
+        $this->assertTrue($policy->viewAny($coach, $assignedPart));
+        $this->assertTrue($policy->view($coach, $assignedChapter));
+        $this->assertTrue($policy->create($coach, $assignedPart));
         $this->assertTrue($policy->update($coach, $assignedChapter));
+        $this->assertTrue($policy->delete($coach, $assignedChapter));
+        $this->assertTrue($policy->publish($coach, $assignedChapter));
+        $this->assertTrue($policy->unpublish($coach, $assignedChapter));
+        $this->assertTrue($policy->reorder($coach, $assignedPart));
+        $this->assertFalse($policy->viewAny($coach, $otherPart));
+        $this->assertFalse($policy->view($coach, $otherChapter));
         $this->assertFalse($policy->update($coach, $otherChapter));
+
+        $assignment->update(['unassigned_at' => now()]);
+
+        $this->assertFalse($policy->viewAny($coach, $assignedPart));
+        $this->assertFalse($policy->view($coach, $assignedChapter));
+        $this->assertFalse($policy->update($coach, $assignedChapter));
     }
 
     public function test_student_can_view_only_published_chapter(): void

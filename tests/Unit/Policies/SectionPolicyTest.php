@@ -56,7 +56,7 @@ class SectionPolicyTest extends TestCase
         $coach = User::factory()->coach()->create();
         $admin = User::factory()->admin()->create();
         $assignedCert = Certification::factory()->published()->create();
-        CertificationCoachAssignment::create([
+        $assignment = CertificationCoachAssignment::create([
             'id' => (string) Str::ulid(),
             'certification_id' => $assignedCert->id,
             'user_id' => $coach->id,
@@ -65,10 +65,29 @@ class SectionPolicyTest extends TestCase
         ]);
         $part = Part::factory()->for($assignedCert)->published()->create();
         $chapter = Chapter::factory()->for($part)->published()->create();
-        $section = Section::factory()->for($chapter)->published()->create();
+        $section = Section::factory()->for($chapter)->draft()->create();
+        $otherCert = Certification::factory()->published()->create();
+        $otherChapter = Chapter::factory()->for(Part::factory()->for($otherCert)->published())->published()->create();
+        $otherSection = Section::factory()->for($otherChapter)->published()->create();
         $policy = new SectionPolicy;
 
+        $this->assertTrue($policy->viewAny($coach, $chapter));
+        $this->assertTrue($policy->view($coach, $section));
+        $this->assertTrue($policy->create($coach, $chapter));
         $this->assertTrue($policy->update($coach, $section));
+        $this->assertTrue($policy->delete($coach, $section));
+        $this->assertTrue($policy->publish($coach, $section));
+        $this->assertTrue($policy->unpublish($coach, $section));
+        $this->assertTrue($policy->reorder($coach, $chapter));
         $this->assertTrue($policy->preview($coach, $section));
+        $this->assertFalse($policy->viewAny($coach, $otherChapter));
+        $this->assertFalse($policy->view($coach, $otherSection));
+        $this->assertFalse($policy->update($coach, $otherSection));
+
+        $assignment->update(['unassigned_at' => now()]);
+
+        $this->assertFalse($policy->viewAny($coach, $chapter));
+        $this->assertFalse($policy->view($coach, $section));
+        $this->assertFalse($policy->update($coach, $section));
     }
 }

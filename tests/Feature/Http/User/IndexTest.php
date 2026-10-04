@@ -88,7 +88,7 @@ class IndexTest extends TestCase
     public function test_status_filter_excludes_withdrawn_by_default(): void
     {
         $admin = User::factory()->admin()->create();
-        $active = User::factory()->create(['email' => 'active@example.test']);
+        User::factory()->create(['email' => 'active@example.test']);
         $gone = User::factory()->create(['email' => 'gone@example.test']);
         app(UserWithdrawalService::class)->withdraw($gone);
 
@@ -98,6 +98,26 @@ class IndexTest extends TestCase
         $response->assertSee('active@example.test');
         $response->assertDontSee('gone@example.test');
         // UserWithdrawalService 経由で email が {ulid}@deleted.invalid にリネームされる
+        $response->assertDontSee($gone->fresh()->email);
+    }
+
+    public function test_status_filter_excludes_withdrawn_when_another_status_is_selected(): void
+    {
+        $admin = User::factory()->admin()->create();
+        User::factory()->create([
+            'email' => 'active@example.test',
+            'status' => UserStatus::InProgress->value,
+        ]);
+        $gone = User::factory()->create(['email' => 'gone@example.test']);
+        app(UserWithdrawalService::class)->withdraw($gone);
+
+        $response = $this->actingAs($admin)->get(route('admin.users.index', [
+            'status' => UserStatus::InProgress->value,
+        ]));
+
+        $response->assertOk();
+        $response->assertSee('active@example.test');
+        $response->assertDontSee('gone@example.test');
         $response->assertDontSee($gone->fresh()->email);
     }
 

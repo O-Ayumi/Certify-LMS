@@ -192,6 +192,22 @@ class BrowseControllerTest extends TestCase
             ->assertNotFound();
     }
 
+    public function test_archived_certification_details_404_for_passed_enrollment(): void
+    {
+        [$student, $part] = $this->buildArchivedCertificationPart(EnrollmentStatus::Passed);
+        $chapter = Chapter::factory()->for($part)->create(['status' => ContentStatus::Published->value]);
+        $section = Section::factory()->for($chapter)->create([
+            'status' => ContentStatus::Published->value,
+            'body' => '# テスト本文',
+        ]);
+
+        $this->actingAs($student)
+            ->get(route('learning.parts.show', $part))
+            ->assertNotFound();
+        $this->get(route('learning.chapters.show', $chapter))->assertNotFound();
+        $this->get(route('learning.sections.show', $section))->assertNotFound();
+    }
+
     /**
      * @return array{0: User, 1: Certification}
      */
@@ -221,15 +237,15 @@ class BrowseControllerTest extends TestCase
     }
 
     /**
-     * 受講登録(learning)済みだが資格が公開停止(archived)のシナリオ。配下 Part は Published。
+     * 受講登録済みだが資格が公開停止(archived)のシナリオ。配下 Part は Published。
      *
      * @return array{0: User, 1: Part}
      */
-    private function buildArchivedCertificationPart(): array
+    private function buildArchivedCertificationPart(EnrollmentStatus $status = EnrollmentStatus::Learning): array
     {
         $student = User::factory()->student()->inProgress()->create();
         $certification = Certification::factory()->archived()->create();
-        Enrollment::factory()->for($student)->for($certification)->learning()->create();
+        Enrollment::factory()->for($student)->for($certification)->state(['status' => $status->value])->create();
         $part = Part::factory()->for($certification)->create(['status' => ContentStatus::Published->value]);
 
         return [$student, $part];

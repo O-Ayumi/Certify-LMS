@@ -13,6 +13,7 @@ use App\Models\Plan;
 use App\Models\User;
 use App\Services\InvitationTokenService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\URL;
 use Tests\TestCase;
 
@@ -128,7 +129,13 @@ class OnboardingTest extends TestCase
 
         $response = $this->get($url);
 
+        $response->assertStatus(410);
         $response->assertViewIs('auth.invitation-invalid');
+
+        $tampered = preg_replace('/signature=[^&]+/', 'signature=tampered', $url);
+        $this->get($tampered)
+            ->assertOk()
+            ->assertViewIs('auth.invitation-invalid');
     }
 
     public function test_show_renders_invalid_view_when_user_status_not_invited(): void
@@ -204,6 +211,35 @@ class OnboardingTest extends TestCase
             'id' => $invitation->id,
             'status' => InvitationStatus::Accepted->value,
         ]);
+        $this->assertNotNull($invitation->fresh()->accepted_at);
+    }
+
+    public function test_used_invitation_rejects_repeated_get_and_post_without_reprocessing_onboarding(): void
+    {
+        $invitation = $this->freshInvitation();
+        $postUrl = $this->postUrl($invitation);
+        $this->post($postUrl, [
+            'name' => '初回登録名',
+            'password' => 'initial-secret',
+            'password_confirmation' => 'initial-secret',
+        ])->assertRedirect(route('dashboard.index'));
+
+        $this->get($this->signedShowUrl($invitation))
+            ->assertStatus(410)
+            ->assertViewIs('auth.invitation-invalid');
+
+        $this->post($postUrl, [
+            'name' => '再登録名',
+            'password' => 'replacement-secret',
+            'password_confirmation' => 'replacement-secret',
+        ])->assertStatus(410)
+            ->assertViewIs('auth.invitation-invalid');
+
+        $user = $invitation->user->fresh();
+        $this->assertSame('初回登録名', $user->name);
+        $this->assertTrue(Hash::check('initial-secret', $user->password));
+        $this->assertSame(1, $user->statusLogs()->count());
+        $this->assertSame(1, $user->meetingQuotaTransactions()->count());
     }
 
     public function test_store_does_not_create_new_user_row(): void

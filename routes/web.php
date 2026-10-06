@@ -57,6 +57,7 @@ use App\Http\Controllers\StripeWebhookController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WeakDrillController;
 use App\Http\Controllers\WeakDrillResultController;
+use App\Http\Middleware\RejectAcceptedInvitation;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -72,9 +73,10 @@ Route::post('webhooks/stripe', StripeWebhookController::class)->name('webhooks.s
 // ============================================================
 // signed middleware は store のみに適用し、show は Controller 内で署名検証して invalid 時に friendly view を返す
 Route::get('/onboarding/{invitation}', [OnboardingController::class, 'show'])
+    ->middleware(RejectAcceptedInvitation::class)
     ->name('onboarding.show');
 Route::post('/onboarding/{invitation}', [OnboardingController::class, 'store'])
-    ->middleware('signed')
+    ->middleware(['signed', RejectAcceptedInvitation::class])
     ->name('onboarding.store');
 
 // ============================================================

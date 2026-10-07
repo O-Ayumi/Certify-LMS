@@ -90,11 +90,49 @@ class BrowseControllerTest extends TestCase
     public function test_show_part_forbidden_for_non_enrolled_student(): void
     {
         $student = User::factory()->student()->inProgress()->create();
-        $part = Part::factory()->create(['status' => ContentStatus::Published->value]);
+        $certification = Certification::factory()->published()->create();
+        $part = Part::factory()
+            ->for($certification)
+            ->published()
+            ->create();
 
         $response = $this->actingAs($student)->get(route('learning.parts.show', $part));
 
         $response->assertForbidden();
+    }
+
+    public function test_content_details_are_limited_to_the_enrolled_certification(): void
+    {
+        $student = User::factory()->student()->inProgress()->create();
+        $enrolledCertification = Certification::factory()->published()->create();
+        $unenrolledCertification = Certification::factory()->published()->create();
+        Enrollment::factory()
+            ->for($student)
+            ->for($enrolledCertification)
+            ->learning()
+            ->create();
+
+        $enrolledPart = Part::factory()->for($enrolledCertification)->published()->create();
+        $enrolledChapter = Chapter::factory()->for($enrolledPart)->published()->create();
+        $enrolledSection = Section::factory()->for($enrolledChapter)->published()->create([
+            'body' => '# 登録済み資格の教材',
+        ]);
+
+        $unenrolledPart = Part::factory()->for($unenrolledCertification)->published()->create();
+        $unenrolledChapter = Chapter::factory()->for($unenrolledPart)->published()->create();
+        $unenrolledSection = Section::factory()->for($unenrolledChapter)->published()->create([
+            'body' => '# 未登録資格の教材',
+        ]);
+
+        $this->actingAs($student)
+            ->get(route('learning.parts.show', $enrolledPart))
+            ->assertOk();
+        $this->get(route('learning.chapters.show', $enrolledChapter))->assertOk();
+        $this->get(route('learning.sections.show', $enrolledSection))->assertOk();
+
+        $this->get(route('learning.parts.show', $unenrolledPart))->assertForbidden();
+        $this->get(route('learning.chapters.show', $unenrolledChapter))->assertForbidden();
+        $this->get(route('learning.sections.show', $unenrolledSection))->assertForbidden();
     }
 
     public function test_show_chapter_404_when_draft_part(): void

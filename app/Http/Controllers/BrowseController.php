@@ -42,16 +42,25 @@ class BrowseController extends Controller
 
     public function showPart(Part $part, ShowPartAction $action): View
     {
-        return view('learning.parts.show', $action($part, auth()->user()));
+        $data = $action($part, auth()->user());
+        $this->authorize('learning.part.view', $part);
+
+        return view('learning.parts.show', $data);
     }
 
     public function showChapter(Chapter $chapter, ShowChapterAction $action): View
     {
-        return view('learning.chapters.show', $action($chapter, auth()->user()));
+        $data = $action($chapter, auth()->user());
+        $this->authorize('learning.chapter.view', $chapter);
+
+        return view('learning.chapters.show', $data);
     }
 
     public function showSection(Section $section, ShowSectionAction $action): View
     {
-        return view('learning.sections.show', $action($section, auth()->user()));
+        $data = $action($section, auth()->user());
+        $this->authorize('learning.section.view', $section);
+
+        return view('learning.sections.show', $data);
     }
 }

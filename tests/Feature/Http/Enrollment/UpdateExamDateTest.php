@@ -33,11 +33,8 @@ class UpdateExamDateTest extends TestCase
 
         // Assert
         $response->assertRedirect(route('enrollments.show', $enrollment));
-        $response->assertSessionHas('success');
-        $this->assertDatabaseHas('enrollments', [
-            'id' => $enrollment->id,
-            'exam_date' => $examDate,
-        ]);
+        $response->assertSessionHas('success', '目標受験日を更新しました。');
+        $this->assertSame($examDate, $enrollment->fresh()->exam_date?->toDateString());
     }
 
     public function test_other_student_cannot_update_exam_date(): void

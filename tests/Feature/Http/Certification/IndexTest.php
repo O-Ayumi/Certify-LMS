@@ -10,6 +10,7 @@ use App\Models\CertificationCoachAssignment;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class IndexTest extends TestCase
@@ -72,19 +73,37 @@ class IndexTest extends TestCase
         $response->assertDontSee('PMP Certification');
     }
 
-    public function test_status_filter_returns_only_matching_status(): void
-    {
+    #[DataProvider('statusFilters')]
+    public function test_status_filter_returns_only_matching_status(
+        string $status,
+        string $expectedName,
+        array $unexpectedNames,
+    ): void {
         $admin = User::factory()->admin()->create();
         Certification::factory()->draft()->create(['name' => 'Draft One']);
         Certification::factory()->published()->create(['name' => 'Published One']);
         Certification::factory()->archived()->create(['name' => 'Archived One']);
 
-        $response = $this->actingAs($admin)->get(route('admin.certifications.index', ['status' => 'published']));
+        $response = $this->actingAs($admin)->get(route('admin.certifications.index', ['status' => $status]));
 
         $response->assertOk();
-        $response->assertSee('Published One');
-        $response->assertDontSee('Draft One');
-        $response->assertDontSee('Archived One');
+        $response->assertSee($expectedName);
+
+        foreach ($unexpectedNames as $unexpectedName) {
+            $response->assertDontSee($unexpectedName);
+        }
+    }
+
+    /**
+     * @return array<string, array{string, string, array<int, string>}>
+     */
+    public static function statusFilters(): array
+    {
+        return [
+            'published' => ['published', 'Published One', ['Draft One', 'Archived One']],
+            'draft' => ['draft', 'Draft One', ['Published One', 'Archived One']],
+            'archived' => ['archived', 'Archived One', ['Draft One', 'Published One']],
+        ];
     }
 
     public function test_category_filter(): void

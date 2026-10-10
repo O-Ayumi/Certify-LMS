@@ -214,6 +214,33 @@ class OnboardingTest extends TestCase
         $this->assertNotNull($invitation->fresh()->accepted_at);
     }
 
+    public function test_onboarded_user_can_log_out_log_back_in_and_access_plan_features(): void
+    {
+        $invitation = $this->freshInvitation();
+        $password = 'secret-pass';
+
+        $this->post($this->postUrl($invitation), [
+            'name' => '受講太郎',
+            'password' => $password,
+            'password_confirmation' => $password,
+        ])->assertRedirect(route('dashboard.index'));
+
+        $user = $invitation->user->fresh();
+        $this->assertSame(UserStatus::InProgress, $user->status);
+        $this->assertAuthenticatedAs($user);
+
+        $this->post('/logout')->assertRedirect('/');
+        $this->assertGuest();
+
+        $this->post('/login', [
+            'email' => $invitation->email,
+            'password' => $password,
+        ])->assertRedirect(config('fortify.home'));
+
+        $this->assertAuthenticatedAs($user);
+        $this->get(route('qa-board.create'))->assertOk();
+    }
+
     public function test_used_invitation_rejects_repeated_get_and_post_without_reprocessing_onboarding(): void
     {
         $invitation = $this->freshInvitation();

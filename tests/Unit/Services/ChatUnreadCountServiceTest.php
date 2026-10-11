@@ -48,6 +48,27 @@ class ChatUnreadCountServiceTest extends TestCase
         $this->assertSame(2, $count);
     }
 
+    public function test_message_count_in_room_returns_zero_when_only_own_messages_are_unread(): void
+    {
+        $student = User::factory()->student()->inProgress()->create();
+        $enrollment = Enrollment::factory()->for($student)->create();
+        $room = ChatRoom::factory()->for($enrollment)->create();
+
+        ChatMember::factory()->create([
+            'chat_room_id' => $room->id,
+            'user_id' => $student->id,
+            'last_read_at' => null,
+        ]);
+        ChatMessage::factory()->create([
+            'chat_room_id' => $room->id,
+            'sender_user_id' => $student->id,
+        ]);
+
+        $count = app(ChatUnreadCountService::class)->messageCountInRoom($room, $student);
+
+        $this->assertSame(0, $count);
+    }
+
     public function test_room_count_for_user_counts_only_rooms_with_unread(): void
     {
         $student = User::factory()->student()->inProgress()->create();
@@ -71,6 +92,18 @@ class ChatUnreadCountServiceTest extends TestCase
             'chat_room_id' => $roomB->id,
             'user_id' => $student->id,
             'last_read_at' => now(),
+        ]);
+
+        $enrollmentC = Enrollment::factory()->for($student)->create();
+        $roomC = ChatRoom::factory()->for($enrollmentC)->create();
+        ChatMember::factory()->create([
+            'chat_room_id' => $roomC->id,
+            'user_id' => $student->id,
+            'last_read_at' => null,
+        ]);
+        ChatMessage::factory()->create([
+            'chat_room_id' => $roomC->id,
+            'sender_user_id' => $student->id,
         ]);
 
         $count = app(ChatUnreadCountService::class)->roomCountForUser($student);
@@ -109,13 +142,26 @@ class ChatUnreadCountServiceTest extends TestCase
             'created_at' => now()->subMinutes(5),
         ]);
 
+        $enrollmentC = Enrollment::factory()->for($student)->create();
+        $roomC = ChatRoom::factory()->for($enrollmentC)->create();
+        ChatMember::factory()->create([
+            'chat_room_id' => $roomC->id,
+            'user_id' => $student->id,
+            'last_read_at' => null,
+        ]);
+        ChatMessage::factory()->create([
+            'chat_room_id' => $roomC->id,
+            'sender_user_id' => $student->id,
+        ]);
+
         $counts = app(ChatUnreadCountService::class)->messageCountsByRoomForUser(
-            collect([$roomA, $roomB]),
+            collect([$roomA, $roomB, $roomC]),
             $student,
         );
 
         $this->assertSame(2, $counts[$roomA->id]);
         $this->assertSame(0, $counts[$roomB->id]);
+        $this->assertSame(0, $counts[$roomC->id]);
     }
 
     public function test_message_counts_by_room_returns_zero_for_non_member_room(): void

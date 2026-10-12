@@ -26,7 +26,8 @@ class IndexTest extends TestCase
         // Arrange
         $admin = User::factory()->admin()->create();
         $coach = User::factory()->coach()->create();
-        $student = User::factory()->student()->create();
+        $assignedStudent = User::factory()->student()->create(['name' => 'Assigned Student']);
+        $otherStudent = User::factory()->student()->create(['name' => 'Other Student']);
 
         $assignedCert = Certification::factory()->published()->create(['name' => 'Assigned Cert']);
         $otherCert = Certification::factory()->published()->create(['name' => 'Other Cert']);
@@ -40,11 +41,11 @@ class IndexTest extends TestCase
         ]);
 
         Enrollment::factory()->learning()->create([
-            'user_id' => $student->id,
+            'user_id' => $assignedStudent->id,
             'certification_id' => $assignedCert->id,
         ]);
         Enrollment::factory()->learning()->create([
-            'user_id' => $student->id,
+            'user_id' => $otherStudent->id,
             'certification_id' => $otherCert->id,
         ]);
 
@@ -54,7 +55,9 @@ class IndexTest extends TestCase
         // Assert
         $response->assertOk();
         $response->assertSee('Assigned Cert');
+        $response->assertSee('Assigned Student');
         $response->assertDontSee('Other Cert');
+        $response->assertDontSee('Other Student');
     }
 
     public function test_guest_cannot_access(): void

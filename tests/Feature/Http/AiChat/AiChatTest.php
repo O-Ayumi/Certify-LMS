@@ -36,6 +36,15 @@ class AiChatTest extends TestCase
         $this->assertDatabaseHas('ai_chat_conversations', ['user_id' => $user->id]);
     }
 
+    public function test_graduated_student_cannot_access_ai_chat(): void
+    {
+        $student = User::factory()->student()->graduated()->create();
+
+        $this->actingAs($student)
+            ->get('/ai-chat')
+            ->assertForbidden();
+    }
+
     public function test_student_can_send_a_message_and_save_the_ai_response(): void
     {
         config(['ai-chat.gemini.api_key' => 'test-key']);

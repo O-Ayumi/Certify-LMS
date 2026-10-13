@@ -295,6 +295,32 @@ class MeetingControllerTest extends TestCase
         );
     }
 
+    public function test_store_reuses_slot_after_canceled_meeting(): void
+    {
+        $student = User::factory()->student()->inProgress()->create(['max_meetings' => 3]);
+        $otherStudent = User::factory()->student()->create();
+        $admin = User::factory()->admin()->create();
+        $coach = User::factory()->coach()->inProgress()->create();
+        $certification = Certification::factory()->published()->create();
+        $this->attachCoach($certification, $coach, $admin);
+        CoachAvailability::factory()->forCoach($coach)->onDay(1)->timeRange('09:00:00', '18:00:00')->create();
+        $enrollment = Enrollment::factory()->for($student, 'user')->for($certification)->learning()->create();
+        $scheduledAt = now()->startOfDay()->next(Carbon::MONDAY)->setTime(10, 0);
+
+        Meeting::factory()->canceled()->forCoach($coach)->forStudent($otherStudent)->create([
+            'scheduled_at' => $scheduledAt,
+        ]);
+
+        $response = $this->actingAs($student)->post(route('meetings.store', $enrollment), [
+            'scheduled_at' => $scheduledAt->format('Y-m-d\TH:i:s'),
+            'topic' => '相談したい',
+        ]);
+
+        $response->assertRedirect();
+        $this->assertSame(1, Meeting::query()->where('status', MeetingStatus::Reserved->value)->count());
+        $this->assertSame(1, Meeting::query()->where('status', MeetingStatus::Canceled->value)->count());
+    }
+
     public function test_cancel_refunds_meeting_quota(): void
     {
         // Arrange: 面談回数を 1 回消費済みの予約を作る。

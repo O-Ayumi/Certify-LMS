@@ -135,4 +135,24 @@ class GradeActionTest extends TestCase
         // 1/3 = 33.33% — 50% 未満で不合格
         $this->assertFalse($session->pass);
     }
+
+    public function test_grades_session_with_no_questions_as_zero_percent_and_fail(): void
+    {
+        $mockExam = MockExam::factory()->published()->passingScore(60)->create();
+        $session = MockExamSession::factory()
+            ->forMockExam($mockExam)
+            ->inProgress()
+            ->create([
+                'generated_question_ids' => [],
+                'total_questions' => 0,
+                'passing_score_snapshot' => 60,
+            ]);
+
+        (app(GradeAction::class))($session);
+
+        $session->refresh();
+        $this->assertSame(0, $session->total_correct);
+        $this->assertEquals(0.00, (float) $session->score_percentage);
+        $this->assertFalse($session->pass);
+    }
 }

@@ -21,7 +21,9 @@ return new class extends Migration
     {
         Schema::table('meetings', function (Blueprint $table) {
             $table->unique(['coach_id', 'scheduled_at'], 'meetings_coach_scheduled_at_unique');
-            $table->dropIndex('meetings_coach_id_index');
+            // Keep the standalone coach_id index until the earlier migration
+            // rolls back its composite index. MySQL may require an index on
+            // the FK column while that rollback is performed.
         });
     }
 };

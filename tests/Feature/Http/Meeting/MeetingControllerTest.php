@@ -312,7 +312,7 @@ class MeetingControllerTest extends TestCase
         ]);
 
         $response = $this->actingAs($student)->post(route('meetings.store', $enrollment), [
-            'scheduled_at' => $scheduledAt->format('Y-m-d\\TH:i:s'),
+            'scheduled_at' => $scheduledAt->format('Y-m-d\TH:i:s'),
             'topic' => '相談したい',
         ]);
 

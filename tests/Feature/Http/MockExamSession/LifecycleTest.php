@@ -13,6 +13,7 @@ use App\Models\MockExamAnswer;
 use App\Models\MockExamQuestion;
 use App\Models\MockExamSession;
 use App\Models\User;
+use App\Services\TermJudgementService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -206,6 +207,34 @@ class LifecycleTest extends TestCase
         $this->assertNotNull($session->canceled_at);
         // TermJudgementService が basic_learning に戻る(他に進行中 mock がない場合)
         $this->assertSame(TermType::BasicLearning, $enrollment->refresh()->current_term);
+    }
+
+    public function test_canceled_sessions_are_ignored_but_active_sessions_keep_mock_practice(): void
+    {
+        $student = User::factory()->student()->create();
+        $enrollment = Enrollment::factory()->for($student)->learning()->mockPractice()->create();
+
+        MockExamSession::factory()
+            ->forUser($student)
+            ->forEnrollment($enrollment)
+            ->canceled()
+            ->create();
+
+        $this->assertSame(
+            TermType::BasicLearning,
+            app(TermJudgementService::class)->recalculate($enrollment),
+        );
+
+        MockExamSession::factory()
+            ->forUser($student)
+            ->forEnrollment($enrollment)
+            ->inProgress()
+            ->create();
+
+        $this->assertSame(
+            TermType::MockPractice,
+            app(TermJudgementService::class)->recalculate($enrollment->refresh()),
+        );
     }
 
     public function test_destroy_rejects_in_progress_session(): void

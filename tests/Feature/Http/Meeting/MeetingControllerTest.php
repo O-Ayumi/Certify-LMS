@@ -6,6 +6,7 @@ namespace Tests\Feature\Http\Meeting;
 
 use App\Enums\MeetingQuotaTransactionType;
 use App\Enums\MeetingStatus;
+use App\Exceptions\MeetingQuota\InsufficientMeetingQuotaException;
 use App\Models\Certification;
 use App\Models\CoachAvailability;
 use App\Models\Enrollment;
@@ -115,6 +116,38 @@ class MeetingControllerTest extends TestCase
             'enrollment_id' => $enrollment->id,
             'status' => MeetingStatus::Reserved->value,
         ]);
+        $this->assertDatabaseHas('meeting_quota_transactions', [
+            'user_id' => $student->id,
+            'related_meeting_id' => Meeting::query()->sole()->id,
+            'type' => MeetingQuotaTransactionType::Consumed->value,
+            'amount' => -1,
+        ]);
+    }
+
+    public function test_store_rejects_when_student_has_no_meeting_quota(): void
+    {
+        $student = User::factory()->student()->inProgress()->create(['max_meetings' => 0]);
+        $admin = User::factory()->admin()->create();
+        $coach = User::factory()->coach()->inProgress()->create();
+        $certification = Certification::factory()->published()->create();
+        $this->attachCoach($certification, $coach, $admin);
+        CoachAvailability::factory()->forCoach($coach)->onDay(1)->timeRange('09:00:00', '18:00:00')->create();
+        $enrollment = Enrollment::factory()->for($student, 'user')->for($certification)->learning()->create();
+        $scheduledAt = now()->startOfDay()->next(Carbon::MONDAY)->setTime(10, 0);
+
+        $this->withoutExceptionHandling();
+        try {
+            $this->actingAs($student)->post(route('meetings.store', $enrollment), [
+                'scheduled_at' => $scheduledAt->format('Y-m-d\TH:i:s'),
+                'topic' => '相談したい',
+            ]);
+            $this->fail('面談回数不足時は例外になるはず');
+        } catch (InsufficientMeetingQuotaException) {
+            // 期待どおり: quota 消費前に予約処理が中断される。
+        }
+
+        $this->assertDatabaseCount('meetings', 0);
+        $this->assertDatabaseCount('meeting_quota_transactions', 0);
     }
 
     public function test_store_rejects_non_zero_minutes(): void

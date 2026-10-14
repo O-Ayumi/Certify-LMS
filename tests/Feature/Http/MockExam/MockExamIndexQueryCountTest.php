@@ -6,6 +6,7 @@ namespace Tests\Feature\Http\MockExam;
 
 use App\Models\Certification;
 use App\Models\MockExam;
+use App\Models\MockExamQuestion;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -42,6 +43,33 @@ class MockExamIndexQueryCountTest extends TestCase
             $scaled,
             "模試マスタ一覧で N+1 が再発している (基準 {$baseline} → 増加後 {$scaled})。所属資格 / 作成者 / 更新者 / 問題数を Eager Loading + withCount で一括取得しているか確認",
         );
+    }
+
+    public function test_index_displays_the_same_related_values_and_ordering(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $firstCertification = Certification::factory()->published()->create(['name' => '資格 A']);
+        $secondCertification = Certification::factory()->published()->create(['name' => '資格 B']);
+        $first = MockExam::factory()->forCertification($secondCertification)->create([
+            'title' => '模試 B',
+            'order' => 1,
+            'passing_score' => 70,
+            'updated_by_user_id' => $admin->id,
+        ]);
+        $second = MockExam::factory()->forCertification($firstCertification)->create([
+            'title' => '模試 A',
+            'order' => 1,
+            'passing_score' => 80,
+            'updated_by_user_id' => $admin->id,
+        ]);
+        MockExamQuestion::factory()->count(2)->forMockExam($first)->create();
+        MockExamQuestion::factory()->count(1)->forMockExam($second)->create();
+
+        $response = $this->actingAs($admin)->get(route('admin.mock-exams.index'));
+
+        $response->assertOk()
+            ->assertSeeInOrder(['模試 A', '資格 A', '1', '80%', '模試 B', '資格 B', '2', '70%'])
+            ->assertSee($admin->name);
     }
 
     private function createMockExams(Certification $certification, int $count): void

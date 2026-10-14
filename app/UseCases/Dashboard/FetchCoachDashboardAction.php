@@ -44,10 +44,13 @@ final class FetchCoachDashboardAction
         $assignedEnrollments = Enrollment::query()
             ->whereIn('certification_id', $coachingCertificationIds)
             ->whereIn('status', [EnrollmentStatus::Learning, EnrollmentStatus::Passed])
+            ->with(['user', 'certification'])
+            ->withMax('learningSessions', 'started_at')
             ->get();
 
         foreach ($assignedEnrollments as $enrollment) {
-            $enrollment->last_activity_at = $enrollment->learningSessions()->max('started_at');
+            // 現行表示仕様を維持しつつ、受講登録ごとの max() による N+1 を回避する。
+            $enrollment->last_activity_at = $enrollment->learning_sessions_max_started_at;
         }
 
         $todayAndTomorrowMeetings = Meeting::query()

@@ -104,4 +104,25 @@ final class GoogleCalendarTest extends TestCase
             ]))
             ->assertRedirect(route('settings.availability.index'));
     }
+
+    public function test_oauth_callback_uses_service_boundary_mock_without_google_sdk_communication(): void
+    {
+        $coach = User::factory()->coach()->create();
+        $google = Mockery::mock(GoogleCalendarService::class);
+        $google->shouldReceive('connect')->once()->with('mocked-code')->andReturn([
+            'google-user',
+            ['access_token' => 'access-token', 'refresh_token' => 'refresh-token', 'expires_in' => 3600],
+        ]);
+        $this->app->instance(GoogleCalendarService::class, $google);
+
+        $this->actingAs($coach)
+            ->withSession(['google_calendar_oauth_state' => 'state'])
+            ->get(route('settings.google-calendar.callback', ['state' => 'state', 'code' => 'mocked-code']))
+            ->assertRedirect(route('settings.availability.index'));
+
+        $this->assertDatabaseHas('google_calendar_credentials', [
+            'user_id' => $coach->id,
+            'google_user_id' => 'google-user',
+        ]);
+    }
 }

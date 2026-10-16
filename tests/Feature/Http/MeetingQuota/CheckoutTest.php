@@ -13,9 +13,11 @@ use App\Services\MeetingQuotaService;
 use App\Services\StripeCheckoutService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Testing\TestResponse;
+use PHPUnit\Framework\Attributes\Group;
 use Stripe\Checkout\Session;
 use Tests\TestCase;
 
+#[Group('external-api')]
 class CheckoutTest extends TestCase
 {
     use RefreshDatabase;
@@ -241,6 +243,21 @@ class CheckoutTest extends TestCase
         );
 
         $this->postSignedWebhook($payload)->assertOk();
+
+        $this->assertSame(PaymentStatus::Pending, $payment->fresh()->status);
+        $this->assertDatabaseCount('meeting_quota_transactions', 0);
+    }
+
+    public function test_webhook_without_signature_is_rejected_without_mutation(): void
+    {
+        config(['services.stripe.webhook_secret' => 'whsec_test_secret']);
+        $student = User::factory()->student()->create();
+        $payment = Payment::factory()->for($student)->create(['quantity' => 2]);
+        $payload = $this->webhookPayload($payment, 'checkout.session.completed', 'paid');
+
+        $this->call('POST', route('webhooks.stripe'), [], [], [], [
+            'CONTENT_TYPE' => 'application/json',
+        ], $payload)->assertStatus(400);
 
         $this->assertSame(PaymentStatus::Pending, $payment->fresh()->status);
         $this->assertDatabaseCount('meeting_quota_transactions', 0);

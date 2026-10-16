@@ -9,8 +9,10 @@ use App\Models\User;
 use App\Services\GoogleCalendarService;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\Group;
 use Tests\TestCase;
 
+#[Group('external-api')]
 final class GoogleCalendarServiceTest extends TestCase
 {
     use RefreshDatabase;

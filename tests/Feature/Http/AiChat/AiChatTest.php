@@ -9,9 +9,12 @@ use App\Enums\UserStatus;
 use App\Models\AiChatConversation;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
+use PHPUnit\Framework\Attributes\Group;
 use Tests\TestCase;
 
+#[Group('external-api')]
 class AiChatTest extends TestCase
 {
     use RefreshDatabase;
@@ -170,5 +173,49 @@ class AiChatTest extends TestCase
             'role' => 'assistant',
             'status' => 'error',
         ]);
+    }
+
+    public function test_gemini_request_contains_system_prompt_history_and_context(): void
+    {
+        config([
+            'ai-chat.gemini.api_key' => 'test-key',
+            'ai-chat.gemini.system_prompt' => '安全に回答してください',
+        ]);
+        Http::fake(['generativelanguage.googleapis.com/*' => Http::response([
+            'candidates' => [['content' => ['parts' => [['text' => '回答']]]]],
+        ])]);
+
+        $user = $this->student();
+        $conversation = AiChatConversation::create(['user_id' => $user->id, 'title' => '相談']);
+
+        $this->actingAs($user)->postJson(
+            "/ai-chat/conversations/{$conversation->id}/messages",
+            ['content' => '現在の質問'],
+        )->assertOk();
+
+        Http::assertSent(function ($request): bool {
+            $body = $request->data();
+
+            return $request->hasHeader('x-goog-api-key', 'test-key')
+                && str_contains($body['system_instruction']['parts'][0]['text'], '安全に回答してください')
+                && str_contains($body['contents'][0]['parts'][0]['text'], '受講生: 現在の質問');
+        });
+    }
+
+    public function test_gemini_connection_error_is_not_sent_to_the_real_service(): void
+    {
+        config(['ai-chat.gemini.api_key' => 'test-key']);
+        Http::fake(fn () => throw new ConnectionException('network down'));
+
+        $user = $this->student();
+        $conversation = AiChatConversation::create(['user_id' => $user->id, 'title' => '相談']);
+
+        $this->actingAs($user)
+            ->postJson("/ai-chat/conversations/{$conversation->id}/messages", ['content' => '通信エラー'])
+            ->assertStatus(502);
+
+        // ConnectionException is thrown before Laravel records a completed request;
+        // the fake still guarantees that no real network connection is possible.
+        Http::assertNothingSent();
     }
 }

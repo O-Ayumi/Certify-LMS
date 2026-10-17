@@ -6,12 +6,12 @@ namespace App\Services;
 
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
+use App\Jobs\SendDatabaseNotification;
+use App\Jobs\SendNotificationMail;
 use App\Models\User;
 use Illuminate\Notifications\Notification;
-use Illuminate\Support\Facades\Log;
-use Throwable;
 
-/** 各業務イベントの当事者から配信対象を絞り、DB 保存後に同期でメールを送る。 */
+/** 各業務イベントの当事者から配信対象を絞り、通知とメールを別ジョブで送る。 */
 final class ActivityNotificationService
 {
     /** @param array<int, string> $recipientIds */
@@ -25,18 +25,8 @@ final class ActivityNotificationService
             ->get();
 
         foreach ($recipients as $recipient) {
-            $recipient->notifyNow($notification, ['database']);
-
-            try {
-                $recipient->notifyNow($notification, ['mail']);
-            } catch (Throwable $exception) {
-                // 失敗した宛先のメールにより、確定済み業務・DB 通知・他の宛先への配信を妨げない。
-                Log::error('業務通知のメール送信に失敗しました。', [
-                    'user_id' => $recipient->id,
-                    'notification_type' => $notification::class,
-                    'exception' => $exception,
-                ]);
-            }
+            SendDatabaseNotification::dispatch($recipient->id, $notification)->afterCommit();
+            SendNotificationMail::dispatch($recipient->id, $notification)->afterCommit();
         }
     }
 }

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Tests\Feature\Http\Notification;
 
 use App\Enums\MeetingStatus;
+use App\Jobs\SendDatabaseNotification;
+use App\Jobs\SendNotificationMail;
 use App\Models\Certification;
 use App\Models\ChatMember;
 use App\Models\ChatRoom;
@@ -47,28 +49,28 @@ class DispatchTest extends TestCase
             ChatMember::factory()->create(['chat_room_id' => $room->id, 'user_id' => $user->id]);
         }
         $thread = QaThread::factory()->create(['user_id' => $student->id, 'certification_id' => $certification->id]);
-        $this->mock(MailChannel::class)->shouldReceive('send')->twice();
-
         $this->actingAs($student)->post(route('chat.storeMessage', $room), ['body' => 'こんにちは'])
             ->assertRedirect(route('chat.show', $room));
-        $this->assertSame('chat_message_received', $coach->notifications()->sole()->data['notification_type']);
-        $this->assertSame(0, $student->notifications()->count());
+        Queue::assertPushed(SendDatabaseNotification::class);
+        Queue::assertPushed(SendNotificationMail::class);
 
         $this->actingAs($coach)->post(route('qa-board.replies.store', $thread), ['body' => '回答です'])
             ->assertRedirect(route('qa-board.show', $thread));
-        $this->assertSame('qa_reply_received', $student->notifications()->sole()->data['notification_type']);
+        Queue::assertPushed(SendDatabaseNotification::class, 2);
+        Queue::assertPushed(SendNotificationMail::class, 2);
 
         $this->post(route('qa-board.replies.store', $thread), ['body' => ''])->assertSessionHasErrors('body');
         $this->post(route('chat.storeMessage', $room), ['body' => ''])->assertSessionHasErrors('body');
         $this->actingAs(User::factory()->create())
             ->post(route('chat.storeMessage', $room), ['body' => '不正投稿'])->assertForbidden();
-        $this->assertDatabaseCount('notifications', 2);
+        $this->assertDatabaseCount('notifications', 0);
         $this->assertDatabaseCount('chat_messages', 1);
         $this->assertDatabaseCount('qa_replies', 1);
     }
 
     public function test_booking_notifies_assigned_coach_and_cancellation_notifies_the_other_party(): void
     {
+        Queue::fake();
         $student = User::factory()->create(['max_meetings' => 3]);
         $coach = User::factory()->coach()->create();
         $certification = Certification::factory()->published()->create();
@@ -76,27 +78,25 @@ class DispatchTest extends TestCase
         CoachAvailability::factory()->forCoach($coach)->onDay(1)->timeRange('09:00:00', '18:00:00')->create();
         $enrollment = Enrollment::factory()->for($student, 'user')->for($certification)->learning()->create();
         $scheduledAt = now()->startOfDay()->next(Carbon::MONDAY)->setTime(10, 0);
-        $this->mock(MailChannel::class)->shouldReceive('send')->times(3);
-
         $this->actingAs($student)->post(route('meetings.store', $enrollment), [
             'scheduled_at' => $scheduledAt->format('Y-m-d H:i:s'), 'topic' => '相談です',
         ])->assertSessionHasNoErrors()->assertRedirect();
         $meeting = Meeting::sole();
-        $this->assertSame('meeting_reserved', $coach->notifications()->sole()->data['notification_type']);
-        $this->assertSame(0, $student->notifications()->count());
+        Queue::assertPushed(SendDatabaseNotification::class);
+        Queue::assertPushed(SendNotificationMail::class);
 
         $this->post(route('meetings.cancel', $meeting))->assertRedirect();
         $this->assertSame(MeetingStatus::Canceled, $meeting->fresh()->status);
-        $this->assertSame(2, $coach->notifications()->count());
-        $this->assertSame(0, $student->notifications()->count());
+        Queue::assertPushed(SendDatabaseNotification::class, 2);
+        Queue::assertPushed(SendNotificationMail::class, 2);
         $this->post(route('meetings.cancel', $meeting))->assertForbidden();
-        $this->assertSame(2, $coach->notifications()->count());
+        $this->assertDatabaseCount('notifications', 0);
 
         $second = Meeting::factory()->forCoach($coach)->forEnrollment($enrollment)
             ->create(['scheduled_at' => $scheduledAt->copy()->addDay()]);
         $this->actingAs($coach)->post(route('meetings.cancel', $second))->assertRedirect();
-        $this->assertSame('meeting_canceled', $student->notifications()->sole()->data['notification_type']);
-        $this->assertSame(2, $coach->notifications()->count());
+        Queue::assertPushed(SendDatabaseNotification::class, 3);
+        Queue::assertPushed(SendNotificationMail::class, 3);
     }
 
     public function test_invalid_booking_and_unauthorized_cancellation_do_not_notify(): void

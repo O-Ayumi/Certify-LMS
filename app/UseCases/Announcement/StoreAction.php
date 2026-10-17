@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\UseCases\Announcement;
 
+use App\Jobs\SendDatabaseNotification;
+use App\Jobs\SendNotificationMail;
 use App\Models\AdminAnnouncement;
 use App\Models\User;
 use App\Notifications\Announcement\AdminAnnouncementNotification;
@@ -46,7 +48,10 @@ final class StoreAction
                 User::query()
                     ->whereKey($recipientIds)
                     ->get()
-                    ->each(fn (User $recipient) => $recipient->notify($notification));
+                    ->each(function (User $recipient) use ($notification): void {
+                        SendDatabaseNotification::dispatch($recipient->id, $notification);
+                        SendNotificationMail::dispatch($recipient->id, $notification);
+                    });
             });
 
             return $announcement;

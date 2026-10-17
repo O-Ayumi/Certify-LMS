@@ -5,11 +5,12 @@ declare(strict_types=1);
 namespace Tests\Feature\Http\Announcement;
 
 use App\Enums\AnnouncementTargetType;
+use App\Jobs\SendDatabaseNotification;
+use App\Jobs\SendNotificationMail;
 use App\Models\Certification;
 use App\Models\Enrollment;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Notifications\SendQueuedNotifications;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
@@ -59,7 +60,8 @@ class StoreTest extends TestCase
         $this->assertDatabaseHas('admin_announcements', [
             'dispatched_count' => 2,
         ]);
-        Queue::assertPushed(SendQueuedNotifications::class);
+        Queue::assertPushed(SendDatabaseNotification::class, 2);
+        Queue::assertPushed(SendNotificationMail::class, 2);
     }
 
     public function test_non_admin_cannot_create_announcement(): void
@@ -86,7 +88,8 @@ class StoreTest extends TestCase
         ])->assertRedirect();
 
         $this->assertDatabaseHas('admin_announcements', ['dispatched_count' => 1]);
-        Queue::assertPushed(SendQueuedNotifications::class);
+        Queue::assertPushed(SendDatabaseNotification::class);
+        Queue::assertPushed(SendNotificationMail::class);
     }
 
     public function test_store_validates_required_target_fields(): void

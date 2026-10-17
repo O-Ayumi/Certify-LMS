@@ -84,6 +84,35 @@ Blade / CSS / JS を編集しながら開発する場合は、`build` の代わ�
 
 http://localhost:8000 にアクセスし、下記の[ログインアカウント](#ログインアカウント)でログインできればセットアップ完了です。
 
+### 9. キューワーカーの起動
+
+通知・メール送信はDBキューで非同期処理します。アプリケーションとは別のターミナルでworkerを起動してください。
+
+```bash
+sail artisan queue:work database --queue=default --tries=3
+```
+
+workerを停止すると、キューに積まれた通知・メール送信は再開まで保留されます。通常はworkerを起動したままにしてください。
+
+失敗したジョブの確認・再投入は以下で行います。
+
+```bash
+sail artisan queue:failed
+sail artisan queue:retry <failed-job-id>
+```
+
+ローカル環境では、`.env.example` に以下の設定が含まれています。
+
+```dotenv
+QUEUE_CONNECTION=database
+```
+
+設定を変更した場合は、次のコマンドで設定キャッシュを更新してください。
+
+```bash
+sail artisan config:clear
+```
+
 ## 開発環境 URL
 
 | 用途 | URL |

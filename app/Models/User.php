@@ -65,6 +65,14 @@ class User extends Authenticatable
         'max_meetings' => 'integer',
     ];
 
+    public function isInProgressRecipient(): bool
+    {
+        return $this->trashed()
+            ? false
+            : $this->status === UserStatus::InProgress
+                && in_array($this->role, [UserRole::Student, UserRole::Coach], true);
+    }
+
     /**
      * @return HasMany<UserStatusLog, $this>
      */

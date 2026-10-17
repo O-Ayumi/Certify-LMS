@@ -13,8 +13,10 @@ use App\Models\User;
 use App\Services\GoogleCalendarService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Mockery;
+use PHPUnit\Framework\Attributes\Group;
 use Tests\TestCase;
 
+#[Group('external-api')]
 final class SyncMeetingGoogleCalendarTest extends TestCase
 {
     use RefreshDatabase;

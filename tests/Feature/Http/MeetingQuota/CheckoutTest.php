@@ -13,9 +13,11 @@ use App\Services\MeetingQuotaService;
 use App\Services\StripeCheckoutService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Testing\TestResponse;
+use PHPUnit\Framework\Attributes\Group;
 use Stripe\Checkout\Session;
 use Tests\TestCase;
 
+#[Group('external-api')]
 class CheckoutTest extends TestCase
 {
     use RefreshDatabase;
@@ -63,6 +65,30 @@ class CheckoutTest extends TestCase
         $this->assertSame('購入時パック名', $payment->fresh()->meeting_pack_name_snapshot);
         $this->assertSame(4, $payment->fresh()->quantity);
         $this->assertSame(9000, $payment->fresh()->amount);
+    }
+
+    public function test_checkout_uses_service_boundary_mock_without_stripe_api_communication(): void
+    {
+        $student = User::factory()->student()->create();
+        $pack = MeetingPack::factory()->published()->create();
+        $session = Session::constructFrom([
+            'id' => 'cs_test_boundary_mock',
+            'url' => 'https://checkout.stripe.test/boundary-mock',
+        ]);
+
+        $this->mock(StripeCheckoutService::class)
+            ->shouldReceive('createCheckoutSession')
+            ->once()
+            ->andReturn($session);
+
+        $this->actingAs($student)
+            ->post(route('meeting-quota.checkout.create'), ['meeting_pack_id' => $pack->id])
+            ->assertRedirect($session->url);
+
+        $this->assertDatabaseHas('payments', [
+            'user_id' => $student->id,
+            'stripe_checkout_session_id' => 'cs_test_boundary_mock',
+        ]);
     }
 
     public function test_zero_price_pack_uses_the_standard_checkout_and_webhook_grant_flow(): void
@@ -241,6 +267,21 @@ class CheckoutTest extends TestCase
         );
 
         $this->postSignedWebhook($payload)->assertOk();
+
+        $this->assertSame(PaymentStatus::Pending, $payment->fresh()->status);
+        $this->assertDatabaseCount('meeting_quota_transactions', 0);
+    }
+
+    public function test_webhook_without_signature_is_rejected_without_mutation(): void
+    {
+        config(['services.stripe.webhook_secret' => 'whsec_test_secret']);
+        $student = User::factory()->student()->create();
+        $payment = Payment::factory()->for($student)->create(['quantity' => 2]);
+        $payload = $this->webhookPayload($payment, 'checkout.session.completed', 'paid');
+
+        $this->call('POST', route('webhooks.stripe'), [], [], [], [
+            'CONTENT_TYPE' => 'application/json',
+        ], $payload)->assertStatus(400);
 
         $this->assertSame(PaymentStatus::Pending, $payment->fresh()->status);
         $this->assertDatabaseCount('meeting_quota_transactions', 0);

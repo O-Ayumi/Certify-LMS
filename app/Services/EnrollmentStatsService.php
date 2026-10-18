@@ -6,6 +6,7 @@ namespace App\Services;
 
 use App\Enums\EnrollmentStatus;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -18,12 +19,28 @@ use Illuminate\Support\Facades\DB;
  */
 class EnrollmentStatsService
 {
+    public function forgetAdminDashboardCache(): void
+    {
+        Cache::forget(config('dashboard.admin_kpi_cache_key'));
+        Cache::forget(config('dashboard.admin_completion_rate_cache_key'));
+    }
+
     /**
      * 全体 KPI(learning / passed / failed 件数 + 資格別内訳)を返す。
      *
      * @return array{learning_count: int, passed_count: int, failed_count: int, total: int, by_certification: array<int, array{certification_id: string, certification_name: string, learning: int, passed: int, failed: int, total: int}>}
      */
     public function adminKpi(): array
+    {
+        return Cache::remember(
+            config('dashboard.admin_kpi_cache_key'),
+            now()->addSeconds((int) config('dashboard.admin_cache_ttl')),
+            fn (): array => $this->calculateAdminKpi(),
+        );
+    }
+
+    /** @return array{learning_count: int, passed_count: int, failed_count: int, total: int, by_certification: array<int, array{certification_id: string, certification_name: string, learning: int, passed: int, failed: int, total: int}>} */
+    private function calculateAdminKpi(): array
     {
         $counts = DB::table('enrollments')
             ->whereNull('deleted_at')
@@ -77,15 +94,19 @@ class EnrollmentStatsService
      */
     public function completionRateByCertification(): Collection
     {
-        return collect($this->byCertification())
-            ->filter(fn (array $row): bool => $row['total'] > 0)
-            ->map(function (array $row): array {
-                $row['completion_rate'] = round($row['passed'] / $row['total'], 4);
+        return Cache::remember(
+            config('dashboard.admin_completion_rate_cache_key'),
+            now()->addSeconds((int) config('dashboard.admin_cache_ttl')),
+            fn (): Collection => collect($this->byCertification())
+                ->filter(fn (array $row): bool => $row['total'] > 0)
+                ->map(function (array $row): array {
+                    $row['completion_rate'] = round($row['passed'] / $row['total'], 4);
 
-                return $row;
-            })
-            ->sortByDesc('total')
-            ->values();
+                    return $row;
+                })
+                ->sortByDesc('total')
+                ->values(),
+        );
     }
 
     /**

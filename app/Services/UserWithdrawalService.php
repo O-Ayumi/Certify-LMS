@@ -19,6 +19,10 @@ use App\Models\User;
  */
 final class UserWithdrawalService
 {
+    public function __construct(
+        private readonly EnrollmentStatsService $stats,
+    ) {}
+
     /**
      * ユーザーを退会状態にする（email リネーム + status 更新 + soft delete）。
      *
@@ -33,5 +37,7 @@ final class UserWithdrawalService
         ])->save();
 
         $user->delete();
+
+        $this->stats->forgetAdminDashboardCache();
     }
 }

@@ -35,14 +35,10 @@ class DeliveryTest extends TestCase
         foreach ([$student, ...$coaches] as $user) {
             ChatMember::factory()->create(['chat_room_id' => $room->id, 'user_id' => $user->id]);
         }
-        $this->mock(MailChannel::class)->shouldReceive('send')->twice()
-            ->andReturnUsing(function () {
-                $this->assertSame(0, DB::transactionLevel());
-            });
-
         DB::beginTransaction();
         $message = (new StoreMessageAction)($student, $room, ['body' => '新着メッセージ']);
         $this->assertDatabaseCount('notifications', 0);
+        Queue::assertNothingPushed();
         DB::commit();
 
         $this->assertModelExists($message);
@@ -88,6 +84,7 @@ class DeliveryTest extends TestCase
         $this->assertDatabaseCount('chat_messages', 0);
         $this->assertDatabaseCount('qa_replies', 0);
         $this->assertDatabaseCount('meetings', 0);
+        Queue::assertNothingPushed();
     }
 
     public function test_mail_failure_does_not_rollback_reply_and_its_database_notification(): void

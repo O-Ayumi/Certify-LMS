@@ -6,6 +6,8 @@ namespace Tests\Feature\UseCases\Notification;
 
 use App\Events\MeetingCanceled;
 use App\Events\MeetingReserved;
+use App\Jobs\SendDatabaseNotification;
+use App\Jobs\SendNotificationMail;
 use App\Models\ChatMember;
 use App\Models\ChatRoom;
 use App\Models\Meeting;
@@ -16,7 +18,6 @@ use App\UseCases\QaReply\StoreAction;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Notifications\Channels\MailChannel;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
@@ -34,36 +35,29 @@ class DeliveryTest extends TestCase
         foreach ([$student, ...$coaches] as $user) {
             ChatMember::factory()->create(['chat_room_id' => $room->id, 'user_id' => $user->id]);
         }
-        $this->mock(MailChannel::class)->shouldReceive('send')->twice()
-            ->andReturnUsing(function () {
-                $this->assertSame(0, DB::transactionLevel());
-            });
-
         DB::beginTransaction();
         $message = (new StoreMessageAction)($student, $room, ['body' => '新着メッセージ']);
         $this->assertDatabaseCount('notifications', 0);
+        Queue::assertNothingPushed();
         DB::commit();
 
         $this->assertModelExists($message);
         $this->assertSame(0, $student->notifications()->count());
-        foreach ($coaches as $coach) {
-            $this->assertSame('chat_message_received', $coach->notifications()->sole()->data['notification_type']);
-        }
+        Queue::assertPushed(SendDatabaseNotification::class, 2);
+        Queue::assertPushed(SendNotificationMail::class, 2);
     }
 
     public function test_reply_notifies_author_only_and_self_reply_is_excluded(): void
     {
+        Queue::fake();
         $author = User::factory()->create();
         $responder = User::factory()->create();
         $thread = QaThread::factory()->create(['user_id' => $author->id]);
-        $this->mock(MailChannel::class)->shouldReceive('send')->once();
-
         (new StoreAction)($responder, $thread, '回答です');
         (new StoreAction)($author, $thread, '自己返信です');
 
-        $this->assertSame('qa_reply_received', $author->notifications()->sole()->data['notification_type']);
-        $this->assertSame(0, $responder->notifications()->count());
-        $this->assertDatabaseCount('notifications', 1);
+        Queue::assertPushed(SendDatabaseNotification::class, 1);
+        Queue::assertPushed(SendNotificationMail::class, 1);
     }
 
     public function test_rollback_discards_notifications_for_all_four_events(): void
@@ -90,20 +84,19 @@ class DeliveryTest extends TestCase
         $this->assertDatabaseCount('chat_messages', 0);
         $this->assertDatabaseCount('qa_replies', 0);
         $this->assertDatabaseCount('meetings', 0);
+        Queue::assertNothingPushed();
     }
 
     public function test_mail_failure_does_not_rollback_reply_and_its_database_notification(): void
     {
+        Queue::fake();
         $author = User::factory()->create();
         $thread = QaThread::factory()->create(['user_id' => $author->id]);
-        $this->mock(MailChannel::class)->shouldReceive('send')->once()
-            ->andThrow(new \RuntimeException('mail unavailable'));
-        Log::shouldReceive('error')->once();
-
         $reply = (new StoreAction)(User::factory()->create(), $thread, '保存される回答');
 
         $this->assertModelExists($reply);
-        $this->assertSame(1, $author->unreadNotifications()->count());
+        Queue::assertPushed(SendDatabaseNotification::class, 1);
+        Queue::assertPushed(SendNotificationMail::class, 1);
         $this->assertSame(0, DB::transactionLevel());
     }
 

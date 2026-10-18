@@ -13,6 +13,9 @@ return new class extends Migration
         Schema::table('meetings', function (Blueprint $table) {
             // coach_id の外部キーが利用できる単独インデックスを先に用意する。
             $table->index('coach_id', 'meetings_coach_id_index');
+        });
+
+        Schema::table('meetings', function (Blueprint $table) {
             $table->dropUnique('meetings_coach_scheduled_at_unique');
         });
     }

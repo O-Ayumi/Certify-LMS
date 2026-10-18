@@ -6,6 +6,7 @@ namespace App\Services;
 
 use App\Enums\UserStatus;
 use App\Models\User;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * ユーザー退会の物理的処理を集約する Service。
@@ -33,5 +34,8 @@ final class UserWithdrawalService
         ])->save();
 
         $user->delete();
+
+        Cache::forget(config('dashboard.admin_kpi_cache_key'));
+        Cache::forget(config('dashboard.admin_completion_rate_cache_key'));
     }
 }

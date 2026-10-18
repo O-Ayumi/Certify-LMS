@@ -6,7 +6,6 @@ namespace App\Services;
 
 use App\Enums\UserStatus;
 use App\Models\User;
-use Illuminate\Support\Facades\Cache;
 
 /**
  * ユーザー退会の物理的処理を集約する Service。
@@ -20,6 +19,10 @@ use Illuminate\Support\Facades\Cache;
  */
 final class UserWithdrawalService
 {
+    public function __construct(
+        private readonly EnrollmentStatsService $stats,
+    ) {}
+
     /**
      * ユーザーを退会状態にする（email リネーム + status 更新 + soft delete）。
      *
@@ -35,7 +38,6 @@ final class UserWithdrawalService
 
         $user->delete();
 
-        Cache::forget(config('dashboard.admin_kpi_cache_key'));
-        Cache::forget(config('dashboard.admin_completion_rate_cache_key'));
+        $this->stats->forgetAdminDashboardCache();
     }
 }

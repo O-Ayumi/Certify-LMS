@@ -8,7 +8,6 @@ use App\Enums\EnrollmentStatus;
 use App\Models\Enrollment;
 use App\Models\EnrollmentStatusLog;
 use App\Models\User;
-use Illuminate\Support\Facades\Cache;
 
 /**
  * Enrollment 状態遷移の監査ログ(`EnrollmentStatusLog`)を INSERT する Service。
@@ -21,6 +20,10 @@ use Illuminate\Support\Facades\Cache;
  */
 final class EnrollmentStatusChangeService
 {
+    public function __construct(
+        private readonly EnrollmentStatsService $stats,
+    ) {}
+
     /**
      * @param Enrollment $enrollment 状態遷移する対象 Enrollment
      * @param ?EnrollmentStatus $fromStatus 遷移前ステータス(初回登録時のみ null、それ以降は必須)
@@ -43,8 +46,7 @@ final class EnrollmentStatusChangeService
             'changed_at' => now(),
         ]);
 
-        Cache::forget(config('dashboard.admin_kpi_cache_key'));
-        Cache::forget(config('dashboard.admin_completion_rate_cache_key'));
+        $this->stats->forgetAdminDashboardCache();
 
         return $log;
     }

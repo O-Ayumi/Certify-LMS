@@ -19,6 +19,12 @@ use Illuminate\Support\Facades\DB;
  */
 class EnrollmentStatsService
 {
+    public function forgetAdminDashboardCache(): void
+    {
+        Cache::forget(config('dashboard.admin_kpi_cache_key'));
+        Cache::forget(config('dashboard.admin_completion_rate_cache_key'));
+    }
+
     /**
      * 全体 KPI(learning / passed / failed 件数 + 資格別内訳)を返す。
      *

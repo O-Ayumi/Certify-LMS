@@ -99,6 +99,7 @@ workerを停止すると、キューに積まれた通知・メール送信は�
 ```bash
 sail artisan queue:failed
 sail artisan queue:retry <failed-job-id>
+sail artisan queue:retry all
 ```
 
 ローカル環境では、`.env.example` に以下の設定が含まれています。
@@ -112,6 +113,8 @@ QUEUE_CONNECTION=database
 ```bash
 sail artisan config:clear
 ```
+
+DB通知とメール送信は別ジョブとして処理し、メール送信の失敗時はメールジョブのみをリトライします。これにより、メールのリトライでDB通知が再保存されることを防ぎます。外部メールサービス側で送信成功後にアプリケーションとの通信が切断された場合など、外部サービスの受信済み状態を判定できないケースでのメール重複排除は対象外です。
 
 ## 開発環境 URL
 

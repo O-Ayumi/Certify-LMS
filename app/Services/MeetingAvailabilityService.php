@@ -110,12 +110,13 @@ final class MeetingAvailabilityService
     public function validateSlot(Certification $certification, Carbon $scheduledAt): void
     {
         $time = $scheduledAt->format('H:i:s');
+        $endTime = $scheduledAt->copy()->addHour()->format('H:i:s');
         $matched = $certification->coaches()
             ->whereHas('coachAvailabilities', fn ($query) => $query
                 ->where('day_of_week', $scheduledAt->dayOfWeek)
                 ->where('is_active', true)
                 ->where('start_time', '<=', $time)
-                ->where('end_time', '>', $time)
+                ->where('end_time', '>=', $endTime)
             )
             ->exists();
 

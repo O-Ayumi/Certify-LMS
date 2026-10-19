@@ -168,6 +168,18 @@ class MeetingAvailabilityServiceTest extends TestCase
         app(MeetingAvailabilityService::class)->validateSlot($certification, Carbon::parse('2026-06-01 15:00:00'));
     }
 
+    public function test_validate_slot_throws_when_one_hour_booking_exceeds_availability_end(): void
+    {
+        $certification = Certification::factory()->published()->create();
+        $coach = User::factory()->coach()->create();
+        $this->attachCoach($certification, $coach);
+        CoachAvailability::factory()->forCoach($coach)->onDay(1)->timeRange('09:00:00', '10:00:00')->create();
+
+        $this->expectException(MeetingOutOfAvailabilityException::class);
+
+        app(MeetingAvailabilityService::class)->validateSlot($certification, Carbon::parse('2026-06-01 09:30:00'));
+    }
+
     public function test_validate_slot_succeeds_when_in_availability(): void
     {
         $certification = Certification::factory()->published()->create();

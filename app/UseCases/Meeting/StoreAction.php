@@ -67,9 +67,10 @@ final class StoreAction
     private function findAvailableCoaches(Certification $certification, Carbon $scheduledAt): Collection
     {
         $time = $scheduledAt->format('H:i:s');
+        $endTime = $scheduledAt->copy()->addHour()->format('H:i:s');
 
         return $certification->coaches()->with('googleCredential')
-            ->whereHas('coachAvailabilities', fn ($q) => $q->where('day_of_week', $scheduledAt->dayOfWeek)->where('is_active', true)->where('start_time', '<=', $time)->where('end_time', '>', $time))
+            ->whereHas('coachAvailabilities', fn ($q) => $q->where('day_of_week', $scheduledAt->dayOfWeek)->where('is_active', true)->where('start_time', '<=', $time)->where('end_time', '>=', $endTime))
             ->whereDoesntHave('meetingsAsCoach', fn ($q) => $q->where('scheduled_at', $scheduledAt)->whereIn('status', [MeetingStatus::Reserved->value, MeetingStatus::Completed->value]))
             ->get()->filter(fn (User $coach) => ! $this->calendar->isBusy($coach, $scheduledAt))->values();
     }

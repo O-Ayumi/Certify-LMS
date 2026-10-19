@@ -22,8 +22,16 @@ class UserSeederTest extends TestCase
 
         $this->seed(UserSeeder::class);
 
-        $this->assertSame(20, User::withTrashed()->count());
+        $this->assertSame(21, User::withTrashed()->count());
         $this->assertTrue(User::where('role', UserRole::Admin)->exists());
+
+        $certificateStudent = User::query()
+            ->where('email', 'student-graduated@certify-lms.test')
+            ->first();
+
+        $this->assertNotNull($certificateStudent);
+        $this->assertSame(UserRole::Student, $certificateStudent->role);
+        $this->assertSame(UserStatus::Graduated, $certificateStudent->status);
 
         foreach ([
             [UserRole::Coach, UserStatus::InProgress],

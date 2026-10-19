@@ -17,7 +17,10 @@ class InvitationMail extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
 
-    public function __construct(public Invitation $invitation) {}
+    public function __construct(public Invitation $invitation)
+    {
+        $this->afterCommit();
+    }
 
     public function envelope(): Envelope
     {

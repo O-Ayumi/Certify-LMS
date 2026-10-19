@@ -109,11 +109,16 @@ final class MeetingAvailabilityService
      */
     public function validateSlot(Certification $certification, Carbon $scheduledAt): void
     {
-        $slots = $this->slotsForCertification($certification, $scheduledAt->copy()->startOfDay());
-
-        $matched = $slots->contains(
-            fn (array $slot) => $slot['slot_start']->equalTo($scheduledAt) && $slot['available_coach_count'] > 0,
-        );
+        $time = $scheduledAt->format('H:i:s');
+        $endTime = $scheduledAt->copy()->addHour()->format('H:i:s');
+        $matched = $certification->coaches()
+            ->whereHas('coachAvailabilities', fn ($query) => $query
+                ->where('day_of_week', $scheduledAt->dayOfWeek)
+                ->where('is_active', true)
+                ->where('start_time', '<=', $time)
+                ->where('end_time', '>=', $endTime)
+            )
+            ->exists();
 
         if (! $matched) {
             throw new MeetingOutOfAvailabilityException;
